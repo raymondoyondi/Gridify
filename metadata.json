@@ -1,0 +1,6 @@
+{
+  "name": "Gridify",
+  "description": "A responsive drag-and-drop dashboard for managing complex data visualizations with real-time analytics and natural language insights.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
