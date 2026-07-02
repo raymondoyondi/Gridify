@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: gridify
+      POSTGRES_PASSWORD: gridify_password
+      POSTGRES_DB: gridify
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  # Ollama is typically run via the `ollama` CLI and local server.
+  # The Ollama team does not currently provide an official docker image for model serving
+  # in all environments; if you have a private image or local server use that here.
+  # This is a placeholder service to remind contributors how to wire Ollama/Llama 3.
+  ollama:
+    image: ollama/ollama:latest
+    restart: "no"
+    # Note: You may instead run `ollama serve` locally and not start a container here.
+    command: ["serve"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ./models:/models
+
+# Optional: add your application and frontend services here
+# app:
+#   build: ./backend
+#   environment:
+#     DATABASE_URL: postgres://gridify:gridify_password@postgres:5432/gridify
+#   depends_on:
+#     - postgres
+
+volumes:
+  pgdata: {}
