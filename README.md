@@ -15,18 +15,34 @@ A smart web dashboard powered by GenAI that lets users use natural language to i
 - **Backend/Server**: TypeScript, Node.js (`server.ts`)
 - **AI Integration**: Generative AI APIs (Configurable via `.env`)
 
-## 📁 Repository Structure
+## 📁 Project Structure
 
 ```text
-├── src/               # Frontend and Backend source files
-├── .env.example       # Example environment variables template
-├── .gitignore         # Git ignore file configuration
-├── index.html         # Main entry point for the web dashboard
-├── metadata.json      # Configuration or application metadata
-├── package.json       # Project dependencies and scripts
-├── server.ts          # Server-side entry point
-├── tsconfig.json      # TypeScript compiler configuration
-└── README.md          # Project documentation
+backend/
+├── app/
+│   ├── __init__.py
+│   ├── config.py              # Configuration settings
+│   ├── routers/
+│   │   ├── __init__.py
+│   │   ├── telemetry.py       # Telemetry endpoints
+│   │   └── gemini.py          # Gemini AI endpoints
+│   ├── services/
+│   │   ├── __init__.py
+│   │   └── gemini_service.py  # Gemini API client
+│   └── utils/
+│       ├── __init__.py
+│       ├── logger.py          # Logging setup
+│       └── telemetry_data.py  # Default telemetry data
+├── tests/
+│   ├── __init__.py
+│   ├── test_telemetry.py      # Telemetry tests
+│   └── test_gemini.py         # Gemini integration tests
+├── main.py                    # FastAPI application
+├── requirements.txt           # Python dependencies
+├── Dockerfile                 # Docker configuration
+├── docker-compose.yml         # Docker Compose configuration
+├── .env.example              # Environment variables template
+└── README.md                 # This file
 ```
 
 ## ⚙️ Getting Started
