@@ -2,11 +2,11 @@ This file documents how to add Recharts and Chart.js to the frontend and contain
 
 Install (from the frontend directory):
 
-npm install recharts chart.js react-chartjs-2
+`npm install recharts chart.js react-chartjs-2`
 
 or with yarn:
 
-yarn add recharts chart.js react-chartjs-2
+`yarn add recharts chart.js react-chartjs-2`
 
 Recharts (example React TSX component):
 
