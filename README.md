@@ -9,7 +9,7 @@ A smart web dashboard powered by GenAI that lets users use natural language to i
 - Extensible frontend charting with Recharts and Chart.js.
 - Example ML integration with scikit-learn for model training and serving.
 
-## 🛠️ Tech Stack (updated)
+## 🛠️ Tech Stack
 
 - Frontend: TypeScript, React, Tailwind CSS (UI)
   - Charting: Recharts, Chart.js (react-chartjs-2)
@@ -20,20 +20,7 @@ A smart web dashboard powered by GenAI that lets users use natural language to i
   - Ollama + Llama 3 for local LLM inference (docs and Makefile targets provided)
 - Dev & Deployment: Docker, Docker Compose, Makefile targets for common tasks
 
-## 📁 What's new (added files)
-
-- Makefile — helper targets: setup, deps, start, stop, db-init, seed, frontend-install, frontend-build, ollama-pull, model-train
-- docker-compose.yml — postgres service + Ollama placeholder
-- requirements.txt — Python dependencies (scikit-learn, pandas, numpy, psycopg2-binary, SQLAlchemy, python-dotenv, joblib)
-- docs/next-steps.md — recommended roadmap (Alembic, FastAPI scaffold, CI, etc.)
-- docs/dev-setup.md — developer setup guide
-- examples/seed_db.py — DB schema creation and seed script
-- examples/train_and_save_model.py — small scikit-learn training example
-- frontend/package-scripts.md — Recharts and Chart.js examples
-
-These are committed on the main branch.
-
-## ⚙️ Quick local setup (recommended)
+## ⚙️ Local Setup
 
 Prerequisites
 - Docker & Docker Compose
@@ -102,15 +89,6 @@ make frontend-build
 - If you have a backend server (e.g., FastAPI or Node), start it according to its README (the Makefile and docs include examples and scaffolding suggestions).
 
 Open your browser at http://localhost:3000 (or the port your server serves on).
-
-## Environment and secrets
-- Do not commit production credentials. Use a .env file (see .env.example) or environment variables.
-- The example scripts use the DATABASE_URL env var. Default used by examples: postgres://gridify:gridify_password@localhost:5432/gridify
-
-## Next steps and customization
-- Pin dependency versions in requirements.txt and frontend lockfiles for reproducible builds.
-- Add Alembic migrations (docs/next-steps.md recommends this) and a FastAPI backend scaffold (I can add these in a feature branch).
-- Tell me a preferred Llama 3 model name if you want me to add Makefile automation to pull it via Ollama.
 
 ## 📄 License
 
