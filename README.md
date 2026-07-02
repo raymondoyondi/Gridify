@@ -4,85 +4,113 @@ A smart web dashboard powered by GenAI that lets users use natural language to i
 
 ## 🚀 Features
 
-- **Natural Language to Dashboard**: Type what you want to see, and watch the layout generate automatically.
-- **AI-Powered Charts**: Dynamically creates data visualizations based on user prompts.
-- **Smart Summaries**: Generates AI insights from your underlying data.
-- **Custom Layouts**: Flexible grid system that adapts to your generated components.
+- Natural language to dashboard: type what you want and Gridify generates charts and layouts.
+- AI-powered charts and summaries using local or hosted LLMs.
+- Extensible frontend charting with Recharts and Chart.js.
+- Example ML integration with scikit-learn for model training and serving.
 
-## 🛠️ Tech Stack
+## 🛠️ Tech Stack (updated)
 
-- **Frontend**: HTML5, TypeScript, Tailwind CSS (implied by layout configuration)
-- **Backend/Server**: TypeScript, Node.js (`server.ts`)
-- **AI Integration**: Generative AI APIs (Configurable via `.env`)
+- Frontend: TypeScript, React, Tailwind CSS (UI)
+  - Charting: Recharts, Chart.js (react-chartjs-2)
+- Backend: Python (FastAPI example scaffold available) or Node.js (existing server.ts)
+- Database: PostgreSQL (docker-compose service included)
+- Models & LLMs:
+  - scikit-learn for classical ML models (training & saving examples in /examples)
+  - Ollama + Llama 3 for local LLM inference (docs and Makefile targets provided)
+- Dev & Deployment: Docker, Docker Compose, Makefile targets for common tasks
 
-## 📁 Project Structure
+## 📁 What's new (added files)
 
-```text
-backend/
-├── app/
-│   ├── __init__.py
-│   ├── config.py              # Configuration settings
-│   ├── routers/
-│   │   ├── __init__.py
-│   │   ├── telemetry.py       # Telemetry endpoints
-│   │   └── gemini.py          # Gemini AI endpoints
-│   ├── services/
-│   │   ├── __init__.py
-│   │   └── gemini_service.py  # Gemini API client
-│   └── utils/
-│       ├── __init__.py
-│       ├── logger.py          # Logging setup
-│       └── telemetry_data.py  # Default telemetry data
-├── tests/
-│   ├── __init__.py
-│   ├── test_telemetry.py      # Telemetry tests
-│   └── test_gemini.py         # Gemini integration tests
-├── main.py                    # FastAPI application
-├── requirements.txt           # Python dependencies
-├── Dockerfile                 # Docker configuration
-├── docker-compose.yml         # Docker Compose configuration
-├── .env.example              # Environment variables template
-└── README.md                 # This file
+- Makefile — helper targets: setup, deps, start, stop, db-init, seed, frontend-install, frontend-build, ollama-pull, model-train
+- docker-compose.yml — postgres service + Ollama placeholder
+- requirements.txt — Python dependencies (scikit-learn, pandas, numpy, psycopg2-binary, SQLAlchemy, python-dotenv, joblib)
+- docs/next-steps.md — recommended roadmap (Alembic, FastAPI scaffold, CI, etc.)
+- docs/dev-setup.md — developer setup guide
+- examples/seed_db.py — DB schema creation and seed script
+- examples/train_and_save_model.py — small scikit-learn training example
+- frontend/package-scripts.md — Recharts and Chart.js examples
+
+These are committed on the main branch.
+
+## ⚙️ Quick local setup (recommended)
+
+Prerequisites
+- Docker & Docker Compose
+- Python 3.10+
+- Node.js 16+ and npm or yarn
+
+Steps
+1. Clone the repo
+
+```bash
+git clone https://github.com/raymondoyondi/Gridify.git
+cd Gridify
 ```
 
-## ⚙️ Getting Started
+2. Install Python deps
 
-### Prerequisites
+```bash
+make deps
+```
 
-Make sure you have the following installed:
-- [Node.js](https://nodejs.org) (v18 or higher recommended)
-- npm or yarn
+3. Install frontend deps (from repo root)
 
-### Installation
+```bash
+make frontend-install
+```
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com
-   cd Gridify
-   ```
+4. Start infrastructure (Postgres + optional Ollama placeholder)
 
-2. **Install dependencies:**
-   ```bash
-   npm install
-   ```
+```bash
+make start
+```
 
-3. **Configure Environment Variables:**
-   Duplicate the `.env.example` file and rename it to `.env`:
-   ```bash
-   cp .env.example .env
-   ```
-   Open the `.env` file and fill in your GenAI API keys and other configuration variables.
+If you prefer running Ollama locally with the Ollama CLI, run:
 
-### Running the Application
+```bash
+ollama pull <model-name>
+ollama serve
+```
 
-1. **Start the development server:**
-   ```bash
-   npm run dev
-   ```
-   *(Note: Adjust this command if your `package.json` uses a different script like `npm start` or `ts-node server.ts`)*
+5. Initialize the database schema
 
-2. **Open the app:**
-   Open your browser and navigate to `http://localhost:3000` (or the port specified by your server).
+```bash
+make db-init
+```
+
+6. Seed example data
+
+```bash
+make seed
+```
+
+7. Train the example scikit-learn model
+
+```bash
+make model-train
+```
+
+8. Build the frontend static assets
+
+```bash
+make frontend-build
+```
+
+9. Run the application
+
+- If you have a backend server (e.g., FastAPI or Node), start it according to its README (the Makefile and docs include examples and scaffolding suggestions).
+
+Open your browser at http://localhost:3000 (or the port your server serves on).
+
+## Environment and secrets
+- Do not commit production credentials. Use a .env file (see .env.example) or environment variables.
+- The example scripts use the DATABASE_URL env var. Default used by examples: postgres://gridify:gridify_password@localhost:5432/gridify
+
+## Next steps and customization
+- Pin dependency versions in requirements.txt and frontend lockfiles for reproducible builds.
+- Add Alembic migrations (docs/next-steps.md recommends this) and a FastAPI backend scaffold (I can add these in a feature branch).
+- Tell me a preferred Llama 3 model name if you want me to add Makefile automation to pull it via Ollama.
 
 ## 📄 License
 
