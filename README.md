@@ -14,6 +14,7 @@ A smart web dashboard powered by GenAI that lets users use natural language to i
 - Frontend: TypeScript, React, Tailwind CSS
   - Charting: Recharts, Chart.js
 - Backend: Python/FastAPI
+- Storage: AWS S3 (for file and asset storage)
 - Database: PostgreSQL
 - Models & LLMs:
   - scikit-learn for classical ML models
@@ -26,6 +27,7 @@ Prerequisites
 - Docker & Docker Compose
 - Python 3.10+
 - Node.js 16+ and npm or yarn
+- AWS Account and S3 Bucket credentials
 
 Steps
 1. Clone the repo
