@@ -1,38 +1,31 @@
-# Top-level Makefile for common developer tasks
-.PHONY: setup deps start stop db-init seed frontend-install frontend-build ollama-pull model-train
+# Makefile for common dev tasks
+PY=python3
+VENV=.venv
+PIP=$(VENV)/bin/pip
+PYBIN=$(VENV)/bin/python
 
-setup: deps frontend-install
-	@echo "Setup complete."
+.PHONY: env install train predict llm pull-ollama-model
 
-deps:
-	pip install -r requirements.txt
+env:
+	$(PY) -m venv $(VENV)
+	@echo "Created virtualenv in $(VENV). Activate with: source $(VENV)/bin/activate"
 
-start:
-	docker-compose up -d
+install: env
+	$(PIP) install -r requirements.txt
 
-stop:
-	docker-compose down
+train:
+	$(PYBIN) -m models.train_model --out models/model.joblib
 
-db-init:
-	@echo "Initialize the database (create schema)."
-	python3 examples/seed_db.py --init
+predict:
+	# Example: make predict INPUT=data/sample.csv OUTPUT=predictions.csv
+	$(PYBIN) -m models.predict --input $(INPUT) --output $(OUTPUT) --model models/model.joblib
 
-seed:
-	@echo "Seed the database with example data."
-	python3 examples/seed_db.py
+llm:
+	# Run an example prompt via local Ollama. Provide PROMPT on the make command line.
+	# Example: make llm PROMPT="Hello"
+	$(PYBIN) -c "from llm.ollama_client import run_prompt; import os; print(run_prompt(os.environ.get('PROMPT', 'Hello from Ollama!'), model='llama3'))"
 
-frontend-install:
-	@echo "Install frontend dependencies (run from repo root)."
-	cd frontend && npm install
-
-frontend-build:
-	@echo "Build frontend static assets"
-	cd frontend && npm run build
-
-ollama-pull:
-	@echo "Pull a Llama 3 model via Ollama (replace <model-name>):"
-	@echo "  ollama pull <model-name>"
-	@echo "Start ollama server locally if needed: ollama serve"
-
-model-train:
-	python3 examples/train_and_save_model.py
+pull-ollama-model:
+	# Example command to pull a model via ollama. Uncomment and edit if you have access.
+	# ollama pull llama3
+	@echo "This target is a placeholder. Use 'ollama pull <model>' to fetch models locally if available."

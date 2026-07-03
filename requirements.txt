@@ -1,13 +1,4 @@
-# Python dependencies for Gridify development
-
-scikit-learn
-pandas
-numpy
-psycopg2-binary
-SQLAlchemy
-python-dotenv
+scikit-learn>=1.3
 joblib
-
-# Uncomment / add an Ollama client if you want a Python wrapper to talk to a local Ollama server
-# (depending on the available client package in PyPI at the time):
-# ollama
+numpy
+pandas
