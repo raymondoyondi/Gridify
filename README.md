@@ -13,7 +13,7 @@ A smart web dashboard powered by GenAI that lets users use natural language to i
 
 - Frontend: TypeScript, React, Tailwind CSS
   - Charting: Recharts, Chart.js
-- Backend: Python/FastAPI or Node.js
+- Backend: Python/FastAPI
 - Database: PostgreSQL
 - Models & LLMs:
   - scikit-learn for classical ML models
