@@ -11,14 +11,14 @@ A smart web dashboard powered by GenAI that lets users use natural language to i
 
 ## 🛠️ Tech Stack
 
-- Frontend: TypeScript, React, Tailwind CSS (UI)
-  - Charting: Recharts, Chart.js (react-chartjs-2)
-- Backend: Python (FastAPI example scaffold available) or Node.js (existing server.ts)
-- Database: PostgreSQL (docker-compose service included)
+- Frontend: TypeScript, React, Tailwind CSS
+  - Charting: Recharts, Chart.js
+- Backend: Python/FastAPI or Node.js
+- Database: PostgreSQL
 - Models & LLMs:
-  - scikit-learn for classical ML models (training & saving examples in /examples)
-  - Ollama + Llama 3 for local LLM inference (docs and Makefile targets provided)
-- Dev & Deployment: Docker, Docker Compose, Makefile targets for common tasks
+  - scikit-learn for classical ML models
+  - Ollama + Llama 3 for local LLM inference
+- Dev & Deployment: Docker
 
 ## ⚙️ Local Setup
 
