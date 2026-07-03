@@ -86,8 +86,6 @@ make frontend-build
 
 9. Run the application
 
-- If you have a backend server (e.g., FastAPI or Node), start it according to its README (the Makefile and docs include examples and scaffolding suggestions).
-
 Open your browser at http://localhost:3000 (or the port your server serves on).
 
 ## 📄 License
