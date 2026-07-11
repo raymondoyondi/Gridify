@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # ---- Build stage ----
-FROM node:18-slim AS build
+FROM node:20-slim AS build
 WORKDIR /app
 
 # Install dependencies first to leverage layer caching
@@ -13,7 +13,7 @@ COPY . .
 RUN npm run build
 
 # ---- Runtime stage ----
-FROM node:18-slim AS runtime
+FROM node:20-slim AS runtime
 ENV NODE_ENV=production
 ENV PORT=3000
 WORKDIR /app
