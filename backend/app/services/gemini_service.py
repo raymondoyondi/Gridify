@@ -25,7 +25,7 @@ class GeminiService:
             api_key: Google Gemini API key.
         """
         self.api_key = api_key
-        self.client = None
+        self.client: Optional[Any] = None
         self._initialize_client()
     
     def _initialize_client(self) -> None:
@@ -72,6 +72,7 @@ class GeminiService:
         if not self.is_available():
             raise ValueError("Gemini service not available")
         
+        assert self.client is not None
         try:
             system_prompt = self._build_prompt(
                 query=query,
