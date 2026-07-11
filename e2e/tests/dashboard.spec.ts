@@ -6,8 +6,10 @@ async function navigateToDashboard(page) {
   const launchButton = page.getByRole('button', { name: /Launch Dashboard Console/i })
   await launchButton.waitFor({ state: 'visible', timeout: 5000 })
   await launchButton.click()
-  // Wait for network activity to settle down so chunks load completely
-  await page.waitForURL(/.*dashboard/, { waitUntil: 'networkidle', timeout: 15000 })
+  // Wait for the navigation to commit; the dev server keeps a persistent
+  // HMR connection open so 'networkidle' never fires. Element readiness is
+  // handled by the auto-waiting assertions below.
+  await page.waitForURL(/.*dashboard/, { waitUntil: 'commit', timeout: 15000 })
 }
 
 test.describe('Gridify Dashboard', () => {
