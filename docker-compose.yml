@@ -1,9 +1,37 @@
 version: '3.8'
-
 services:
+  backend:
+    build: .
+    container_name: gridify-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHON_ENV=development
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - FRONTEND_URL=http://localhost:5173
+      - LOG_LEVEL=INFO
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    volumes:
+      - .:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - gridify-network
+  redis:
+    image: redis:7-alpine
+    container_name: gridify-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - gridify-network
   postgres:
     image: postgres:15
     restart: unless-stopped
+    container_name: gridify-postgres
     environment:
       POSTGRES_USER: gridify
       POSTGRES_PASSWORD: gridify_password
@@ -12,28 +40,10 @@ services:
       - pgdata:/var/lib/postgresql/data
     ports:
       - "5432:5432"
-
-  # Ollama is typically run via the `ollama` CLI and local server.
-  # The Ollama team does not currently provide an official docker image for model serving
-  # in all environments; if you have a private image or local server use that here.
-  # This is a placeholder service to remind contributors how to wire Ollama/Llama 3.
-  ollama:
-    image: ollama/ollama:latest
-    restart: "no"
-    # Note: You may instead run `ollama serve` locally and not start a container here.
-    command: ["serve"]
-    ports:
-      - "11434:11434"
-    volumes:
-      - ./models:/models
-
-# Optional: add your application and frontend services here
-# app:
-#   build: ./backend
-#   environment:
-#     DATABASE_URL: postgres://gridify:gridify_password@postgres:5432/gridify
-#   depends_on:
-#     - postgres
-
+    networks:
+      - gridify-network
+networks:
+  gridify-network:
+    driver: bridge
 volumes:
   pgdata: {}
