@@ -165,24 +165,11 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
       
-      - name: Start dev server
-        run: |
-          npm run dev -- --port 3000 > server.log 2>&1 &
+      - name: Run Playwright tests
+        run: npx start-server-and-test 'npm run dev -- --port 3000' http://127.0.0.1:3000 'npx playwright test'
         env:
           VITE_API_URL: http://localhost:3000
           NODE_ENV: test
-      
-      - name: Wait for dev server
-        run: npx wait-on http-get://localhost:3000 --timeout 60000
-
-      - name: Debug Server Logs on Failure
-        if: failure()
-        run: |
-          echo "=== Vite Server Logs ==="
-          cat server.log
-      
-      - name: Run Playwright tests
-        run: npx playwright test
       
       - name: Upload Playwright report
         if: always()
