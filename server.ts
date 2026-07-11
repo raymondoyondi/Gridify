@@ -130,6 +130,15 @@ function emulateQueryResponse(query: string, currentWidgets: any[], isFallbackMo
   };
 }
 
+// Health and readiness probes (used by container orchestrators)
+app.get("/health", (req, res) => {
+  res.json({ status: "ok" });
+});
+
+app.get("/ready", (req, res) => {
+  res.json({ status: "ready" });
+});
+
 // GET initial telemetry data
 app.get("/api/telemetry", (req, res) => {
   res.json(defaultTelemetry);
