@@ -1,0 +1,75 @@
+name: Gridify CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # 1. Frontend Validation Job
+  frontend-ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-node-version: '18'
+          cache: 'npm'
+
+      - name: Install Frontend Dependencies
+        run: make frontend-install
+
+      - name: Lint and Type-Check
+        run: |
+          cd frontend # Adjust if your path differs
+          npm run lint
+          npm run type-check
+
+      - name: Build Frontend Assets
+        run: make frontend-build
+
+  # 2. Backend Validation Job
+  backend-ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install Python Dependencies
+        run: make deps
+
+      - name: Backend Linting & Formatting
+        run: |
+          pip install black flake8 mypy
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          black --check .
+          mypy . --ignore-missing-imports
+
+      - name: Run Backend Tests
+        run: |
+          # Ensure pytest is installed in your env or makefile
+          pytest
+
+  # 3. Docker Build Validation (Ensures deployment artifacts aren't broken)
+  docker-build:
+    needs: [frontend-ci, backend-ci]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Verify Docker Compose Build
+        run: docker compose build
