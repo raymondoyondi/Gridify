@@ -90,6 +90,18 @@ make frontend-build
 
 Open your browser at http://localhost:3000 (or the port your server serves on).
 
+# 🤝 Contributing
+
+We welcome contributions to Gridify! To make the process smooth, please follow these steps:
+
+1. **Fork the Repository**: Create your own fork of the project.
+2. **Create a Feature Branch**: Work on a descriptive branch (`git checkout -b feature/amazing-feature`).
+3. **Commit Your Changes**: Keep commits clean and follow logical steps (`git commit -m 'Add amazing feature'`).
+4. **Push to the Branch**: Upload your changes to GitHub (`git push origin feature/amazing-feature`).
+5. **Open a Pull Request**: Submit your PR against the `main` branch with a clear description of the changes.
+
+Please ensure your code follows the existing style guidelines, includes proper typing (TypeScript/Python Type Hints), and does not break existing application workflows.
+
 ## 📄 License
 
 This project is licensed under the MIT License - see the `LICENSE` file for details.
