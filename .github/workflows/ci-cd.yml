@@ -19,6 +19,9 @@ jobs:
           
       - name: Install Frontend Dependencies
         run: npm ci
+
+      - name: Install Tailwind Native Bindings
+        run: npm install @tailwindcss/oxide-linux-x64-gnu --no-save
         
       - name: Lint and Type-Check
         run: npm run lint
