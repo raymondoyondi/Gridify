@@ -1,49 +1,191 @@
-version: '3.8'
+version: '3.9'
+
 services:
-  backend:
-    build: .
-    container_name: gridify-backend
-    ports:
-      - "8000:8000"
-    environment:
-      - PYTHON_ENV=development
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - FRONTEND_URL=http://localhost:5173
-      - LOG_LEVEL=INFO
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-    volumes:
-      - .:/app
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-    depends_on:
-      - postgres
-      - redis
-    networks:
-      - gridify-network
-  redis:
-    image: redis:7-alpine
-    container_name: gridify-redis
-    ports:
-      - "6379:6379"
-    networks:
-      - gridify-network
+  # PostgreSQL Database
   postgres:
-    image: postgres:15
-    restart: unless-stopped
+    image: postgres:15-alpine
     container_name: gridify-postgres
     environment:
       POSTGRES_USER: gridify
       POSTGRES_PASSWORD: gridify_password
       POSTGRES_DB: gridify
-    volumes:
-      - pgdata:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gridify"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - gridify-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: gridify-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --requirepass ""
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gridify-network
+
+  # Chroma Vector DB
+  chroma:
+    image: ghcr.io/chroma-core/chroma:latest
+    container_name: gridify-chroma
+    environment:
+      IS_PERSISTENT: "true"
+      ALLOW_RESET: "true"
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma_data:/chroma/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gridify-network
+
+  # Prometheus Monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: gridify-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+    networks:
+      - gridify-network
+
+  # Grafana Visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: gridify-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      prometheus:
+        condition: service_started
+    networks:
+      - gridify-network
+
+  # Alertmanager
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: gridify-alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+    networks:
+      - gridify-network
+
+  # Node Exporter for system metrics
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: gridify-node-exporter
+    ports:
+      - "9100:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+    networks:
+      - gridify-network
+
+  # Redis Exporter
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: gridify-redis-exporter
+    ports:
+      - "9121:9121"
+    environment:
+      REDIS_ADDR: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - gridify-network
+
+  # Postgres Exporter
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: gridify-postgres-exporter
+    ports:
+      - "9187:9187"
+    environment:
+      DATA_SOURCE_NAME: "postgresql://gridify:gridify_password@postgres:5432/gridify?sslmode=disable"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - gridify-network
+
+  # DuckDB (optional - runs in embedded mode by default)
+  duckdb-service:
+    image: python:3.11-slim
+    container_name: gridify-duckdb
+    working_dir: /app
+    volumes:
+      - ./backend:/app/backend
+      - duckdb_data:/data
+    environment:
+      PYTHONUNBUFFERED: "1"
+      DUCKDB_PATH: /data/gridify.duckdb
+    command: >
+      sh -c "pip install duckdb polars pandas &&
+      python -c 'import duckdb; print(\"DuckDB ready\")'"
+    networks:
+      - gridify-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  chroma_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  alertmanager_data:
+    driver: local
+  duckdb_data:
+    driver: local
+
 networks:
   gridify-network:
     driver: bridge
-volumes:
-  pgdata: {}

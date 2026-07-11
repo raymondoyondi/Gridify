@@ -1,0 +1,201 @@
+groups:
+  - name: gridify_alerts
+    interval: 30s
+    rules:
+      # API availability alerts
+      - alert: APIInstanceDown
+        expr: up{job="gridify-api"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "Gridify API instance is down"
+          description: "Instance {{ $labels.instance }} has been down for more than 5 minutes"
+
+      - alert: HighAPIErrorRate
+        expr: rate(gridify_api_errors_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "High API error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} (threshold: 5%)"
+
+      - alert: HighAPILatency
+        expr: histogram_quantile(0.95, rate(gridify_api_request_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "High API latency detected"
+          description: "P95 latency is {{ $value | humanizeDuration }} (threshold: 1s)"
+
+      # Database alerts
+      - alert: DatabaseConnectionPoolExhausted
+        expr: gridify_db_connections_active / gridify_db_connections_max > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "Database connection pool nearly exhausted"
+          description: "Active connections: {{ $value | humanizePercentage }} of max"
+
+      - alert: DatabaseSlowQueries
+        expr: rate(gridify_db_slow_queries_total[5m]) > 1
+        for: 10m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "High number of slow database queries"
+          description: "{{ $value }} slow queries per second"
+
+      - alert: DatabaseReplicationLag
+        expr: gridify_db_replication_lag_seconds > 10
+        for: 5m
+        labels:
+          severity: critical
+          component: database
+        annotations:
+          summary: "Database replication lag is too high"
+          description: "Lag is {{ $value | humanizeDuration }} (threshold: 10s)"
+
+      # Redis alerts
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          component: redis
+        annotations:
+          summary: "Redis instance is down"
+          description: "Redis has been unreachable for more than 5 minutes"
+
+      - alert: RedisHighMemoryUsage
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          component: redis
+        annotations:
+          summary: "Redis memory usage is high"
+          description: "Memory usage: {{ $value | humanizePercentage }}"
+
+      - alert: RedisEvictions
+        expr: rate(redis_evicted_keys_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          component: redis
+        annotations:
+          summary: "Redis is evicting keys"
+          description: "Eviction rate: {{ $value }} keys/second"
+
+      # Celery worker alerts
+      - alert: CeleryWorkerDown
+        expr: up{job="gridify-celery"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          component: celery
+        annotations:
+          summary: "Celery worker is down"
+          description: "Worker has been offline for more than 5 minutes"
+
+      - alert: CeleryTaskQueueBacklog
+        expr: gridify_celery_queue_size > 1000
+        for: 10m
+        labels:
+          severity: warning
+          component: celery
+        annotations:
+          summary: "Celery task queue has large backlog"
+          description: "Queue size: {{ $value }} tasks"
+
+      - alert: CeleryTaskFailureRate
+        expr: rate(gridify_celery_task_failures_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: celery
+        annotations:
+          summary: "High Celery task failure rate"
+          description: "Failure rate: {{ $value | humanizePercentage }}"
+
+      # System resource alerts
+      - alert: HighCPUUsage
+        expr: (100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)) > 80
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage: {{ $value | humanize }}%"
+
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage: {{ $value | humanize }}%"
+
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 < 10
+        for: 5m
+        labels:
+          severity: critical
+          component: system
+        annotations:
+          summary: "Disk space is running low"
+          description: "Available space: {{ $value | humanize }}%"
+
+      # DuckDB alerts
+      - alert: DuckDBQueryTimeout
+        expr: rate(gridify_duckdb_query_timeout_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: duckdb
+        annotations:
+          summary: "DuckDB queries timing out"
+          description: "Timeout rate: {{ $value }} per second"
+
+      # Vector DB alerts
+      - alert: VectorDBHighLatency
+        expr: histogram_quantile(0.95, rate(gridify_vectordb_query_duration_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          component: vectordb
+        annotations:
+          summary: "Vector database has high query latency"
+          description: "P95 latency: {{ $value | humanizeDuration }}"
+
+      # LLM service alerts
+      - alert: LLMServiceHighLatency
+        expr: histogram_quantile(0.95, rate(gridify_llm_response_duration_seconds_bucket[5m])) > 30
+        for: 5m
+        labels:
+          severity: warning
+          component: llm
+        annotations:
+          summary: "LLM service has high response latency"
+          description: "P95 latency: {{ $value | humanizeDuration }}"
+
+      - alert: LLMServiceErrorRate
+        expr: rate(gridify_llm_errors_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          component: llm
+        annotations:
+          summary: "LLM service has high error rate"
+          description: "Error rate: {{ $value | humanizePercentage }}"

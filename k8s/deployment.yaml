@@ -1,0 +1,291 @@
+---
+# API Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gridify-api
+  namespace: gridify
+  labels:
+    app: gridify-api
+    tier: api
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: gridify-api
+  template:
+    metadata:
+      labels:
+        app: gridify-api
+        tier: api
+    spec:
+      serviceAccountName: gridify-api
+      containers:
+      - name: api
+        image: gridify:latest
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 3000
+          protocol: TCP
+        env:
+        - name: PYTHON_ENV
+          value: "production"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: gridify-secrets
+              key: database-url
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: gridify-secrets
+              key: redis-url
+        - name: GEMINI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gridify-secrets
+              key: gemini-api-key
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+
+---
+# Frontend Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gridify-frontend
+  namespace: gridify
+  labels:
+    app: gridify-frontend
+    tier: web
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: gridify-frontend
+  template:
+    metadata:
+      labels:
+        app: gridify-frontend
+        tier: web
+    spec:
+      containers:
+      - name: frontend
+        image: gridify-frontend:latest
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP
+        env:
+        - name: VITE_API_URL
+          value: "https://api.gridify.example.com"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 200m
+            memory: 512Mi
+        livenessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 101
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+
+---
+# Celery Worker Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gridify-celery-worker
+  namespace: gridify
+  labels:
+    app: gridify-celery-worker
+    tier: worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gridify-celery-worker
+  template:
+    metadata:
+      labels:
+        app: gridify-celery-worker
+        tier: worker
+    spec:
+      serviceAccountName: gridify-api
+      containers:
+      - name: worker
+        image: gridify:latest
+        imagePullPolicy: Always
+        command: ["celery", "-A", "backend.celery_app", "worker", "-l", "info", "-c", "4"]
+        env:
+        - name: PYTHON_ENV
+          value: "production"
+        - name: CELERY_BROKER_URL
+          valueFrom:
+            secretKeyRef:
+              name: gridify-secrets
+              key: redis-url
+        - name: CELERY_RESULT_BACKEND
+          valueFrom:
+            secretKeyRef:
+              name: gridify-secrets
+              key: redis-url
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+
+---
+# Service for API
+apiVersion: v1
+kind: Service
+metadata:
+  name: gridify-api
+  namespace: gridify
+  labels:
+    app: gridify-api
+spec:
+  type: ClusterIP
+  selector:
+    app: gridify-api
+  ports:
+  - name: http
+    port: 80
+    targetPort: 3000
+    protocol: TCP
+
+---
+# Service for Frontend
+apiVersion: v1
+kind: Service
+metadata:
+  name: gridify-frontend
+  namespace: gridify
+  labels:
+    app: gridify-frontend
+spec:
+  type: ClusterIP
+  selector:
+    app: gridify-frontend
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+    protocol: TCP
+
+---
+# HorizontalPodAutoscaler for API
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: gridify-api-hpa
+  namespace: gridify
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: gridify-api
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 30
+
+---
+# ConfigMap for application config
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gridify-config
+  namespace: gridify
+data:
+  LOG_LEVEL: "INFO"
+  DUCKDB_PATH: "/data/gridify.duckdb"
+  USE_POLARS: "true"
+  USE_LANGCHAIN: "true"
+  ASYNC_PROCESSING_ENABLED: "true"
+  PROMETHEUS_ENABLED: "true"
