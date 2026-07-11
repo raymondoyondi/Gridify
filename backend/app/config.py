@@ -1,5 +1,8 @@
 """Application configuration using Pydantic Settings."""
+
 from pydantic_settings import BaseSettings
+
+
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
     
@@ -15,4 +18,6 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+
+
 settings = Settings()
