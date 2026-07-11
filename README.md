@@ -202,14 +202,6 @@ Includes:
 - **Vector Store**: Chroma/Qdrant for semantic search and RAG
 - **Infrastructure**: Kubernetes with auto-scaling, monitored by Prometheus/Grafana
 
-### Detailed Documentation
-See [ENHANCEMENTS.md](./ENHANCEMENTS.md) for comprehensive documentation covering:
-- Backend services (DuckDB, Polars, Celery, LangChain, Vector DBs)
-- Frontend components (ECharts, React Flow, Framer Motion, shadcn/ui)
-- Infrastructure setup (Terraform, Kubernetes, Docker Compose)
-- Monitoring & alerting rules
-- Development workflow & scripts
-
 ## 🚀 Key Features
 
 ### Data Intelligence
