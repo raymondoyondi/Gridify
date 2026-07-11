@@ -1,7 +1,7 @@
 """Tests for Gemini integration endpoints."""
 
 import pytest
-from httpx import AsyncClient
+from httpx import AsyncClient, ASGITransport
 
 from main import app
 
@@ -9,7 +9,7 @@ from main import app
 @pytest.mark.asyncio
 async def test_gemini_command_missing_query():
     """Test Gemini command with missing query."""
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
             "/api/gemini/command",
             json={"query": "", "currentWidgets": []}
@@ -20,7 +20,7 @@ async def test_gemini_command_missing_query():
 @pytest.mark.asyncio
 async def test_gemini_command_emulation():
     """Test Gemini command with emulation (fallback mode)."""
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
             "/api/gemini/command",
             json={
@@ -39,7 +39,7 @@ async def test_gemini_command_emulation():
 @pytest.mark.asyncio
 async def test_gemini_command_add_widget():
     """Test Gemini command to add widget."""
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
             "/api/gemini/command",
             json={
@@ -55,7 +55,7 @@ async def test_gemini_command_add_widget():
 @pytest.mark.asyncio
 async def test_gemini_command_remove_widget():
     """Test Gemini command to remove widget."""
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         current_widgets = [
             {
                 "id": "widget1",

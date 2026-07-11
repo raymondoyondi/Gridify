@@ -1,7 +1,7 @@
 """Tests for telemetry endpoints."""
 
 import pytest
-from httpx import AsyncClient
+from httpx import AsyncClient, ASGITransport
 
 from main import app
 
@@ -9,7 +9,7 @@ from main import app
 @pytest.mark.asyncio
 async def test_health_check():
     """Test health check endpoint."""
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get("/health")
         assert response.status_code == 200
         assert response.json()["status"] == "healthy"
@@ -18,7 +18,7 @@ async def test_health_check():
 @pytest.mark.asyncio
 async def test_get_telemetry():
     """Test telemetry data retrieval."""
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get("/api/telemetry")
         assert response.status_code == 200
         data = response.json()
@@ -31,7 +31,7 @@ async def test_get_telemetry():
 @pytest.mark.asyncio
 async def test_get_devices():
     """Test getting all devices."""
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get("/api/telemetry/devices")
         assert response.status_code == 200
         data = response.json()
@@ -42,7 +42,7 @@ async def test_get_devices():
 @pytest.mark.asyncio
 async def test_get_device_by_id():
     """Test getting a specific device."""
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get("/api/telemetry/devices/Marchival Arc")
         assert response.status_code == 200
         data = response.json()
@@ -52,7 +52,7 @@ async def test_get_device_by_id():
 @pytest.mark.asyncio
 async def test_get_device_not_found():
     """Test getting non-existent device."""
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get("/api/telemetry/devices/NonExistent")
         assert response.status_code == 200
         data = response.json()
@@ -62,7 +62,7 @@ async def test_get_device_not_found():
 @pytest.mark.asyncio
 async def test_get_temperature_history():
     """Test temperature history retrieval."""
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get("/api/telemetry/metrics/temperature")
         assert response.status_code == 200
         data = response.json()
@@ -73,7 +73,7 @@ async def test_get_temperature_history():
 @pytest.mark.asyncio
 async def test_get_humidity_history():
     """Test humidity history retrieval."""
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get("/api/telemetry/metrics/humidity")
         assert response.status_code == 200
         data = response.json()
