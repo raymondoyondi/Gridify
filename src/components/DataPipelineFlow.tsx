@@ -9,8 +9,8 @@ import ReactFlow, {
   Background,
   Controls,
   MiniMap,
-} from "react-flow-renderer"
-import "react-flow-renderer/dist/style.css"
+} from "reactflow"
+import "reactflow/dist/style.css"
 
 interface PipelineNode extends Node {
   data: {
