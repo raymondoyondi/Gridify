@@ -6,10 +6,7 @@ async function navigateToDashboard(page) {
   const launchButton = page.getByRole('button', { name: /Launch Dashboard Console/i })
   await launchButton.waitFor({ state: 'visible', timeout: 5000 })
   await launchButton.click()
-  // Wait for the navigation to commit; the dev server keeps a persistent
-  // HMR connection open so 'networkidle' never fires. Element readiness is
-  // handled by the auto-waiting assertions below.
-  await page.waitForURL(/.*dashboard/, { waitUntil: 'commit', timeout: 15000 })
+  await expect(page.getByRole('heading', { level: 2 })).toContainText('Dashboard', { timeout: 15000 })
 }
 
 test.describe('Gridify Dashboard', () => {
@@ -24,7 +21,6 @@ test.describe('Gridify Dashboard', () => {
  
   test('should navigate to dashboard', async ({ page }) => {
     await navigateToDashboard(page)
-    await expect(page).toHaveURL(/.*dashboard/)
     await expect(page.getByRole('heading', { level: 2 })).toContainText('Dashboard')
   })
   
@@ -50,18 +46,17 @@ test.describe('Gridify Dashboard', () => {
   test('should filter metrics with chips', async ({ page }) => {
     await navigateToDashboard(page)
     
-    // Explicitly target either test-ids or standard dismiss buttons safely
-    const filterChips = page.locator('[data-testid*="chip"], button:has-text("×")').first()
-    await expect(filterChips).toBeVisible({ timeout: 5000 })
+    const filterChips = page.locator('#filter-chips-list div')
+    await expect(filterChips.first()).toBeVisible({ timeout: 5000 })
     
-    const chips = await page.locator('[data-testid*="chip"], button:has-text("×")').count()
+    const chips = await page.locator('#filter-chips-list div').count()
     expect(chips).toBeGreaterThan(0)
   })
  
   test('should remove filter chips', async ({ page }) => {
     await navigateToDashboard(page)
     
-    const chipLocator = page.locator('[data-testid*="chip"] button, button:has-text("×")')
+    const chipLocator = page.locator('#filter-chips-list button')
     await chipLocator.first().waitFor({ state: 'visible', timeout: 5000 })
     const chipCount = await chipLocator.count()
     
@@ -82,22 +77,19 @@ test.describe('Gridify Dashboard', () => {
   test('should navigate to analytics', async ({ page }) => {
     await navigateToDashboard(page)
     
-    // Use standard CSS selector grouping instead of experimental .or() chains
-    const analyticsNav = page.locator('a:has-text("Advanced Performance Analytics"), button:has-text("Advanced Performance Analytics")').first()
+    const analyticsNav = page.locator('#nav-item-analytics')
     await analyticsNav.waitFor({ state: 'visible', timeout: 5000 })
     await analyticsNav.click()
     
-    await page.waitForURL(/.*analytics/, { waitUntil: 'commit', timeout: 10000 })
-    await expect(page).toHaveURL(/.*analytics/)
+    await expect(page.locator('#workspace-title')).toContainText('Advanced Performance Analytics', { timeout: 10000 })
   })
  
   test('should display device metrics table', async ({ page }) => {
     await navigateToDashboard(page)
-    
-    await page.getByRole('button', { name: /Business Analytics Summary/i }).click()
+    await page.locator('#nav-item-analytics').click()
     
     await expect(page.locator('thead')).toBeVisible({ timeout: 5000 })
-    await expect(page.locator('tbody tr')).toHaveCount(0, { timeout: 5000 })
+    await expect(page.locator('tbody tr')).toHaveCount(10, { timeout: 5000 })
   })
 })
 
