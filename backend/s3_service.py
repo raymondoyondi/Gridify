@@ -25,10 +25,10 @@ class S3Service:
 
     def __init__(
         self,
-        region_name: str = None,
-        aws_access_key_id: str = None,
-        aws_secret_access_key: str = None,
-        bucket_name: str = None,
+        region_name: Optional[str] = None,
+        aws_access_key_id: Optional[str] = None,
+        aws_secret_access_key: Optional[str] = None,
+        bucket_name: Optional[str] = None,
     ):
         """
         Initialize S3 service with AWS credentials.
@@ -98,7 +98,7 @@ class S3Service:
             raise Exception("S3 client is not initialized. Check your AWS credentials.")
 
         try:
-            extra_args = {"ContentType": content_type}
+            extra_args: Dict[str, Any] = {"ContentType": content_type}
             if metadata:
                 extra_args["Metadata"] = metadata
 
@@ -138,7 +138,7 @@ class S3Service:
             raise Exception("S3 client is not initialized. Check your AWS credentials.")
 
         try:
-            extra_args = {"ContentType": content_type}
+            extra_args: Dict[str, Any] = {"ContentType": content_type}
             if metadata:
                 extra_args["Metadata"] = metadata
 
