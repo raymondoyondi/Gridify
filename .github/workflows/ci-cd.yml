@@ -166,12 +166,16 @@ jobs:
         run: npx playwright install --with-deps
       
       - name: Start dev server
-        run: nohup npm run dev > server.log 2>&1 &
+        run: nohup npm run dev -- --host 127.0.0.1 --port 3000 > server.log 2>&1 &
         env:
-          VITE_API_URL: http://localhost:3000
+          VITE_API_URL: http://127.0.0.1:3000
       
       - name: Wait for dev server
         run: npx wait-on http://127.0.0.1:3000 --timeout 120000
+
+      - name: Debug Server Logs on Failure
+        if: failure()
+        run: cat server.log
       
       - name: Run Playwright tests
         run: npx playwright test
