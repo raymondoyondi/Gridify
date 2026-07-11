@@ -1,0 +1,50 @@
+[package]
+name = "gridify-analytics-engine"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1.35", features = ["full"] }
+tonic = "0.11"
+prost = "0.12"
+tonic-reflection = "0.11"
+tower = "0.4"
+tower-http = { version = "0.5", features = ["trace"] }
+
+# Data Processing
+polars = { version = "0.19", features = ["lazy", "parquet", "csv"] }
+arrow = "51.0"
+datafusion = "36.0"
+
+# Database
+tokio-postgres = "0.7"
+redis = { version = "0.24", features = ["aio"] }
+
+# Metrics & Logging
+prometheus = "0.13"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["json"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Configuration
+config = "0.13"
+dotenv = "0.15"
+
+# Utilities
+uuid = { version = "1.6", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+[dev-dependencies]
+mockall = "0.12"
+tokio-test = "0.4"
+
+[[bin]]
+name = "analytics-server"
+path = "src/main.rs"
