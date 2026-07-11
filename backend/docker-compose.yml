@@ -9,7 +9,7 @@ services:
     environment:
       - PYTHON_ENV=development
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - FRONTEND_URL=http://localhost:5173
+      - FRONTEND_URL=http://localhost:3000
       - LOG_LEVEL=INFO
     volumes:
       - .:/app
@@ -20,4 +20,3 @@ services:
 networks:
   gridify-network:
     driver: bridge
-    
