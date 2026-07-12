@@ -5,51 +5,59 @@ A smart web dashboard powered by GenAI that lets users use natural language to i
 ## 🚀 Features
 
 - Natural language to dashboard: type what you want and Gridify generates charts and layouts.
-- AI-powered charts and summaries using local or hosted LLMs.
-- Extensible frontend charting with Recharts and Chart.js.
+- AI-powered charts and summaries using local or hosted LLMs with LiteLLM fallback.
+- Extensible frontend charting with Recharts, Chart.js, and tree-shaken Apache ECharts.
+- Edge analytics with DuckDB-WASM running filter/sort/aggregation locally in the browser.
+- Hybrid RAG with in-browser ONNX embeddings for semantic pre-filtering before cloud vector lookup.
 - Example ML integration with scikit-learn for model training and serving.
 
 ## 🛠️ Tech Stack
 
 ### Frontend & UI
-- **Core**: TypeScript, React 19, Vite
-- **Styling**: Tailwind CSS 4, shadcn/ui, Radix UI
+- **Core**: TypeScript, React 19, Vite 6
+- **Styling**: Tailwind CSS 4 (native CSS Grid, `@theme` tokens), shadcn/ui, Radix UI
+- **State Management**: Zustand
 - **Charting & Visualization**:
-  - Apache ECharts (advanced interactive charts)
-  - D3.js (complex visualizations)
+  - Apache ECharts (advanced interactive charts — tree-shaken via `echarts/core` with only Line, Bar, Scatter, Heatmap, Treemap, Grid, Tooltip, VisualMap, and Canvas renderer)
+  - D3.js (complex visualizations via React Flow)
   - Recharts, Chart.js (legacy support)
 - **Data Pipeline Visualization**: React Flow
 - **Animations**: Framer Motion, Motion
+- **Edge Analytics**: DuckDB-WASM (filter/sort/aggregation in a browser web worker, off the FastAPI cluster)
+- **Browser Embeddings**: ONNX Runtime Web (lightweight in-browser embedding model for hybrid RAG pre-filtering)
+- **Icons**: Lucide React
 
 ### Backend & Data Processing
-- **API Framework**: Python/FastAPI
+- **API Framework**: Python/FastAPI, Uvicorn
+- **ORM**: SQLAlchemy
 - **Async Task Queue**: Celery + Redis
 - **Data Processing**:
-  - DuckDB (primary analytical engine — English-to-SQL, larger-than-memory analytics)
-  - Apache Arrow (zero-copy interchange from DuckDB to the UI/LLM)
-  - Polars (scoped to the ML microservice for feature engineering only)
+  - DuckDB (primary analytical engine — English-to-SQL, larger-than-memory analytics, PostgreSQL direct-attach)
+  - DuckDB-WASM (edge analytics in browser web worker for local filter/sort/aggregation)
+  - Apache Arrow + PyArrow (zero-copy interchange and IPC streaming from DuckDB to the UI/LLM)
 - **Vector Databases**: Chroma, Qdrant
+- **Embedding Model**: sentence-transformers
 - **Database**: PostgreSQL 15+
+- **Object Storage**: AWS S3 (boto3)
 
 ### AI & Machine Learning
 - **LLM Integration**:
   - Google Gemini API (native `@google/genai` / `google-generativeai` SDKs — no LangChain overhead)
-  - LlamaIndex (RAG pipelines)
-  - LiteLLM (unified multi-provider interface)
+  - LiteLLM (unified multi-provider interface with automatic Gemini → vLLM/Mistral fallback)
 - **LLM Response Caching**: Redis-backed cache for repeated dashboard queries (sub-100ms cache hits)
 - **LLM Evaluation**: Promptfoo suite grades text-to-chart/summary prompts in CI
 - **Self-hosted LLMs**: vLLM, Hugging Face TGI
-- **Vector Embeddings**: Chroma, Qdrant
-- **Model Tracking**: MLflow, Weights & Biases
+- **Vector Embeddings**: Chroma, Qdrant, sentence-transformers
+- **Browser Embeddings**: ONNX Runtime Web (in-browser hybrid RAG pre-filtering with dynamic CDN model loading)
 - **Classical ML**: scikit-learn
 
 ### Infrastructure & Deployment
 - **Containerization**: Docker, Docker Compose
 - **Orchestration**: Kubernetes + Helm
-- **Infrastructure as Code**: Terraform/OpenTofu
-- **Cloud Provider**: AWS (VPC, RDS, ElastiCache, S3)
+- **Infrastructure as Code**: Terraform
+- **Cloud Provider**: AWS (VPC, RDS, ElastiCache, S3, CloudWatch)
 - **CI/CD**: GitHub Actions
-- **Testing**: Playwright, Cypress, Pytest
+- **Testing**: Playwright, Pytest, Vitest
 
 ### Monitoring & Observability
 - **Metrics**: Prometheus
@@ -60,15 +68,17 @@ A smart web dashboard powered by GenAI that lets users use natural language to i
 
 ### Development Tools
 - **Code Quality**: ESLint, TypeScript, Prettier
+- **Frontend Testing**: Vitest, Playwright
+- **Backend Testing**: Pytest
 - **Package Managers**: npm/yarn
-- **Runtime**: Node.js 18+, Python 3.11+
+- **Runtime**: Node.js 20+, Python 3.11+
 - **Version Control**: Git, GitHub
 
 ## ⚙️ Quick Start
 
 ### Prerequisites
 - Docker & Docker Compose (required for full stack)
-- Node.js 18+ and npm/yarn
+- Node.js 20+ and npm/yarn
 - Python 3.11+
 - AWS Account (optional, for cloud deployment)
 
@@ -106,7 +116,7 @@ npm run dev                  # Start frontend dev server (proxies /api to FastAP
 # Code quality & testing
 npm run lint               # TypeScript type checking
 npm run format             # Format code with Prettier
-npm run test               # Run unit tests
+npm run test               # Run unit tests with Vitest
 npm run e2e                # Run E2E tests with Playwright
 
 # Build & deployment
@@ -210,9 +220,9 @@ Includes:
 ## 📚 Architecture & Documentation
 
 ### System Architecture
-- **Frontend**: React components with ECharts, React Flow, Framer Motion for interactive dashboards
+- **Frontend**: React components with ECharts (tree-shaken), React Flow, Framer Motion for interactive dashboards; DuckDB-WASM and ONNX Runtime Web for edge/browser analytics and hybrid RAG
 - **Backend**: FastAPI with async task processing via Celery
-- **Data Pipeline**: PostgreSQL → DuckDB (Apache Arrow, zero-copy) → native Gemini SDK for AI insights
+- **Data Pipeline**: PostgreSQL → DuckDB (Apache Arrow, zero-copy IPC streaming) → native Gemini SDK for AI insights
 - **Vector Store**: Chroma/Qdrant for semantic search and RAG
 - **Infrastructure**: Kubernetes with auto-scaling, monitored by Prometheus/Grafana
 
@@ -233,8 +243,10 @@ Includes:
 ### Scalability
 - **Horizontal Scaling**: Kubernetes auto-scales API from 3-10 replicas
 - **Async Processing**: Celery workers handle long-running tasks
-- **Efficient Data Handling**: Arrow zero-copy hand-off from DuckDB to the UI/LLM — no Pandas/Polars serialization boundary in the dashboard backend
+- **Edge Analytics**: DuckDB-WASM runs filter/sort/aggregation locally in the browser web worker, off the backend cluster
+- **Efficient Data Handling**: Arrow zero-copy hand-off from DuckDB to the UI/LLM — no Pandas serialization boundary in the dashboard backend
 - **In-Memory Analytics**: DuckDB for sub-second query times
+- **Hybrid RAG**: ONNX Runtime Web performs in-browser semantic pre-filtering before cloud Chroma lookup, with a deterministic hashing fallback
 
 ### Production Ready
 - **CI/CD**: GitHub Actions with automated testing and deployment
@@ -252,12 +264,14 @@ Recent hardening across the AI, data, and infrastructure layers:
 * **LiteLLM Fallback:** `LLMService` (`backend/app/services/llm_service.py`) routes to hosted Gemini first and transparently falls back to a self-hosted Mistral via vLLM endpoint on rate limits/outages. Configure with `VLLM_BASE_URL` and `VLLM_MODEL`.
 
 ### Data Processing & Pipeline
-* **MotherDuck Integration:** Set `MOTHERDUCK_TOKEN` and/or `DUCKDB_DATABASE=md:gridify` to run analytics on serverless cloud DuckDB, uncoupling storage from the app instance (falls back to the local file otherwise).
-* **Streaming Ingestion:** Apache Kafka (KRaft, in `docker-compose.yml`) or AWS Kinesis buffer real-time telemetry ahead of DuckDB via `backend/app/services/streaming.py` (`STREAMING_ENABLED`, `STREAMING_BACKEND`).
+* **DuckDB-WASM Offload:** `duckdbClient.ts` runs DuckDB inside a web worker so filter/sort/micro-aggregation of cached telemetry executes locally in the browser, off the centralized FastAPI/Celery cluster. Pure SQL builders (`duckdbQueries.ts`) whitelist columns/directions to prevent injection.
+* **Arrow IPC Streaming:** Apache Arrow streaming-format payloads (`query_to_arrow_ipc`) are sent from the backend to the frontend, where `arrowClient.ts` reconstructs tables client-side without `JSON.parse`.
+* **Hybrid RAG:** `ragClient.ts` embeds queries with a lazy ONNX model (`onnxruntime-web`, dynamically imported from a CDN) and cosine-matches them against the cached semantic index in-browser before hitting the cloud Chroma store, with a deterministic hashing fallback for offline/tests.
 
 ### Frontend & State
 * **Zustand Store:** `src/store/dashboardStore.ts` is the single source of truth for widgets, ordering, telemetry, summaries, and status.
-* **Code-Splitting:** Apache ECharts (~1MB) and the React Flow (D3) pipeline are loaded on demand via `React.lazy` (`src/components/charts/LazyCharts.tsx`), keeping the baseline bundle lean.
+* **Native CSS Grid:** Dashboard canvas migrated to a native CSS Grid (`gridify-canvas` / `gridify-col-N`) driven by Tailwind 4 `@theme` tokens. Widget spans come from each widget's column count; reflow is handled by the browser grid engine.
+* **Code-Splitting:** Apache ECharts (~1 MB monolithic) is now tree-shaken via `echarts-for-react/lib/core` importing only Line/Bar/Scatter/Heatmap/Treemap charts plus Grid/Tooltip/VisualMap and Canvas renderer, cutting the chunk to ~594 KB (gzip 199 KB). React Flow (D3) pipeline is also loaded on demand via `React.lazy` (`src/components/charts/LazyCharts.tsx`).
 
 ### Infrastructure & Secrets
 * **PgBouncer Connection Pooling:** Configured via `docker-compose.yml` on port `6432` to pool connections between FastAPI and PostgreSQL, absorbing elastic connection spikes.
@@ -267,14 +281,15 @@ Recent hardening across the AI, data, and infrastructure layers:
 ## 🧪 Testing
 
 ```bash
-# Unit tests
-npm run test
-npm run test:coverage    # Generate coverage report
+# Frontend unit tests (Vitest)
+npm run test               # Run unit tests
+npm run test:coverage      # Generate coverage report
+npm run test:ui            # UI mode for interactive testing
 
 # E2E tests (Playwright)
-npm run e2e              # Run all E2E tests
-npm run e2e:debug        # Debug mode
-npm run e2e:ui           # UI mode for interactive testing
+npm run e2e                # Run all E2E tests
+npm run e2e:debug          # Debug mode
+npm run e2e:ui             # UI mode for interactive testing
 
 # Backend tests
 pytest backend/tests -v --cov=backend
