@@ -11,6 +11,9 @@
  * When no ONNX model is configured (or the WASM runtime is unavailable) we fall
  * back to a deterministic hashing embedder so the local matching path always
  * works — including in unit tests and offline mode.
+ *
+ * ONNX inference runs inside a dedicated Web Worker so matrix calculations never
+ * block the main UI thread.
  */
 
 export interface RAGChunk {
@@ -52,7 +55,6 @@ export function hashEmbedding(text: string, dim: number = DEFAULT_DIM): number[]
   const vec = new Array<number>(dim).fill(0);
   const tokens = text.toLowerCase().match(/[a-z0-9]+/g) ?? [];
   for (const tok of tokens) {
-    // FNV-1a style hash → bucket index.
     let h = 2166136261;
     for (let i = 0; i < tok.length; i++) {
       h ^= tok.charCodeAt(i);
@@ -60,21 +62,26 @@ export function hashEmbedding(text: string, dim: number = DEFAULT_DIM): number[]
     }
     const bucket = Math.abs(h) % dim;
     vec[bucket] += 1;
-    // Sign by first character parity to give some directionality.
     if (tok.charCodeAt(0) % 2 === 0) vec[bucket] *= -1;
   }
   return vec;
 }
 
 /**
- * ONNX-backed embedder. The model is loaded lazily from a CDN URL; until then
- * (or if loading fails) it transparently uses the hashing embedder.
+ * ONNX-backed embedder running inside a dedicated Web Worker. The model is
+ * loaded lazily from a CDN URL; until then (or if loading fails) it
+ * transparently uses the hashing embedder.
  */
 export class ONNXEmbedder {
-  private session: unknown | null = null;
+  private worker: Worker | null = null;
   private loading: Promise<void> | null = null;
   private readonly modelUrl?: string;
   private readonly dim: number;
+  private nextId = 0;
+  private pending = new Map<number, {
+    resolve: (v: number[][]) => void;
+    reject: (e: Error) => void;
+  }>();
 
   constructor(opts: { modelUrl?: string; dim?: number } = {}) {
     this.modelUrl = opts.modelUrl;
@@ -83,58 +90,92 @@ export class ONNXEmbedder {
 
   async ready(): Promise<boolean> {
     if (!this.modelUrl) return false;
-    if (this.session) return true;
+    if (this.worker) return true;
     if (!this.loading) {
-      this.loading = this._load();
+      this.loading = this._loadWorker();
     }
     try {
       await this.loading;
     } catch {
       this.loading = null;
+      this.worker = null;
       return false;
     }
-    return this.session !== null;
+    return this.worker !== null;
   }
 
-  private async _load(): Promise<void> {
-    // Dynamic import keeps onnxruntime-web out of the main bundle until used.
-    const ort = await import("onnxruntime-web");
-    const session = await ort.InferenceSession.create(this.modelUrl!, {
-      executionProviders: ["wasm"],
+  private _loadWorker(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      try {
+        this.worker = new Worker(
+          new URL("./onnxWorker.ts", import.meta.url),
+          { type: "module" }
+        );
+      } catch (err) {
+        reject(err instanceof Error ? err : new Error(String(err)));
+        return;
+      }
+
+      this.worker.onmessage = (e: MessageEvent<{
+        type: string;
+        requestId: number;
+        embeddings?: number[][];
+        error?: string;
+      }>) => {
+        const { type, requestId, embeddings, error } = e.data;
+        const pending = this.pending.get(requestId);
+        if (!pending) return;
+        this.pending.delete(requestId);
+
+        if (type === "ready" || type === "result") {
+          pending.resolve(embeddings ?? []);
+          if (type === "ready") resolve();
+        } else if (type === "error") {
+          pending.reject(new Error(error ?? "ONNX worker error"));
+          if (this.loading) resolve();
+        }
+      };
+
+      this.worker.onerror = (err) => {
+        const message = err?.message ?? "Worker failed to start";
+        const pending = this.pending.get(this.nextId - 1);
+        if (pending) {
+          this.pending.delete(this.nextId - 1);
+          pending.reject(new Error(message));
+        }
+        if (this.loading) {
+          reject(new Error(message));
+        } else {
+          this.worker = null;
+        }
+      };
+
+      const id = this.nextId++;
+      this.pending.set(id, {
+        resolve: () => resolve(),
+        reject: (e) => reject(e),
+      });
+      this.worker.postMessage({
+        type: "init",
+        requestId: id,
+        modelUrl: this.modelUrl,
+        modelDim: this.dim,
+      });
     });
-    this.session = session;
   }
 
-  /** Embed one or more texts. Uses ONNX when available, else hashing. */
+  /** Embed one or more texts. Uses ONNX worker when available, else hashing. */
   async embed(texts: string[]): Promise<number[][]> {
-    const session = this.session as
-      | { inputNames: string[]; outputNames: string[]; run: (f: Record<string, unknown>) => Promise<Record<string, { data: Float32Array }>> }
-      | null;
-
-    if (!session) {
+    if (!this.worker) {
       return texts.map((t) => hashEmbedding(t, this.dim));
     }
 
-    const inputName = session.inputNames[0];
-    const results: number[][] = [];
-    for (const text of texts) {
-      const vec = hashEmbedding(text, this.dim);
-      const tensor = makeTensor(vec);
-      const out = await session.run({ [inputName]: tensor });
-      const data = out[session.outputNames[0]].data;
-      results.push(Array.from(data as Float32Array));
-    }
-    return results;
+    return new Promise((resolve, reject) => {
+      const id = this.nextId++;
+      this.pending.set(id, { resolve, reject });
+      this.worker!.postMessage({ type: "embed", requestId: id, texts });
+    });
   }
-}
-
-// Minimal tensor shim so we don't hard-depend on the onnxruntime-web types.
-function makeTensor(vec: number[]) {
-  return {
-    data: Float32Array.from(vec),
-    dims: [1, vec.length],
-    type: "float32",
-  };
 }
 
 /** Local knowledge base used to build an index when the CDN cache is cold. */
@@ -176,7 +217,6 @@ export class HybridRAG {
         if (res.ok) {
           const payload = (await res.json()) as { chunks?: RAGChunk[] };
           if (payload.chunks?.length) {
-            // Embeddings may already be cached; otherwise compute locally.
             const needEmbed = payload.chunks.filter((c) => !c.embedding);
             if (needEmbed.length) {
               const emb = await this.embedder.embed(needEmbed.map((c) => c.text));
