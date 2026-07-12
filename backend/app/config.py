@@ -15,10 +15,12 @@ class Settings(BaseSettings):
     PYTHON_ENV: str = "development"
     LOG_LEVEL: str = "INFO"
     
-    # Redis & Celery
-    REDIS_URL: str = "redis://localhost:6379/0"
-    CELERY_BROKER_URL: str = "redis://localhost:6379/0"
-    CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"
+    # Valkey / Redis (Valkey is a Redis-compatible drop-in; redis-py client
+    # works against Valkey because Valkey speaks the RESP protocol).
+    VALKEY_URL: str = "valkey://localhost:6379/0"
+    REDIS_URL: str = "valkey://localhost:6379/0"
+    CELERY_BROKER_URL: str = "valkey://localhost:6379/0"
+    CELERY_RESULT_BACKEND: str = "valkey://localhost:6379/0"
     
     # Database
     DATABASE_URL: str = "postgresql://gridify:gridify_password@localhost:5432/gridify"

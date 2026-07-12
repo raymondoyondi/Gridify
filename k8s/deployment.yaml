@@ -45,7 +45,7 @@ spec:
           valueFrom:
             secretKeyRef:
               name: gridify-secrets
-              key: redis-url
+              key: valkey-url
         - name: GEMINI_API_KEY
           valueFrom:
             secretKeyRef:
@@ -179,12 +179,12 @@ spec:
           valueFrom:
             secretKeyRef:
               name: gridify-secrets
-              key: redis-url
+              key: valkey-url
         - name: CELERY_RESULT_BACKEND
           valueFrom:
             secretKeyRef:
               name: gridify-secrets
-              key: redis-url
+              key: valkey-url
         resources:
           requests:
             cpu: 500m
