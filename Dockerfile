@@ -1,29 +1,32 @@
 # syntax=docker/dockerfile:1
 
-# ---- Build stage ----
+#---- Build stage ----
 FROM node:20-slim AS build
 WORKDIR /app
 
-# Install dependencies first to leverage layer caching
 COPY package.json package-lock.json ./
-RUN npm install --no-audit --no-fund
+RUN npm ci --no-audit --no-fund
 
-# Build the frontend (Vite) and bundle the server (esbuild) into dist/
 COPY . .
 RUN npm run build
 
 # ---- Runtime stage ----
-FROM node:20-slim AS runtime
-ENV NODE_ENV=production
-ENV PORT=3000
+FROM python:3.11-slim AS runtime
 WORKDIR /app
 
-# Copy built artifacts and production dependencies
-COPY --from=build /app/package.json /app/package-lock.json ./
-COPY --from=build /app/node_modules ./node_modules
+RUN apt-get update && apt-get install -y \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY backend/ ./backend/
 COPY --from=build /app/dist ./dist
 
 EXPOSE 3000
 
-# The production server serves the built frontend from dist/ on PORT 3000
-CMD ["node", "dist/server.cjs"]
+ENV PYTHON_ENV=production
+ENV PYTHONUNBUFFERED=1
+
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "3000"]
