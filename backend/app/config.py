@@ -15,10 +15,20 @@ class Settings(BaseSettings):
     PYTHON_ENV: str = "development"
     LOG_LEVEL: str = "INFO"
     
-    # Redis & Celery
-    REDIS_URL: str = "redis://localhost:6379/0"
-    CELERY_BROKER_URL: str = "redis://localhost:6379/0"
-    CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"
+    # Temporal (optional durable execution alongside Celery).
+    # When enabled, long-running workflows run on Temporal instead of Celery
+    # so they can pause, resume, and track deep historical states.
+    TEMPORAL_ENABLED: bool = False
+    TEMPORAL_HOST: str = "localhost:7233"
+    TEMPORAL_NAMESPACE: str = "gridify"
+    TEMPORAL_TASK_QUEUE: str = "gridify-tasks"
+
+    # Valkey / Redis (Valkey is a Redis-compatible drop-in; redis-py client
+    # works against Valkey because Valkey speaks the RESP protocol).
+    VALKEY_URL: str = "valkey://localhost:6379/0"
+    REDIS_URL: str = "valkey://localhost:6379/0"
+    CELERY_BROKER_URL: str = "valkey://localhost:6379/0"
+    CELERY_RESULT_BACKEND: str = "valkey://localhost:6379/0"
     
     # Database
     DATABASE_URL: str = "postgresql://gridify:gridify_password@localhost:5432/gridify"
@@ -31,6 +41,18 @@ class Settings(BaseSettings):
     CHROMA_PORT: int = 8000
     QDRANT_URL: Optional[str] = None
    
+    # LLM Gateway Proxies (Portkey / Langfuse).
+    # When configured, all LiteLLM calls are routed through the gateway so
+    # tracking, retries, budget limits, and fallbacks live outside the core
+    # FastAPI code.
+    LLM_GATEWAY_PROVIDER: str = "litellm"
+    LLM_GATEWAY_API_KEY: Optional[str] = None
+    LLM_GATEWAY_BASE_URL: Optional[str] = None
+    LLM_GATEWAY_PORTKEY_API_KEY: Optional[str] = None
+    LLM_GATEWAY_LANGFUSE_PUBLIC_KEY: Optional[str] = None
+    LLM_GATEWAY_LANGFUSE_SECRET_KEY: Optional[str] = None
+    LLM_GATEWAY_LANGFUSE_HOST: str = "https://cloud.langfuse.com"
+
     # LLM Configuration
     LITELLM_API_KEY: Optional[str] = None
     LLM_PROVIDER: str = "gemini"

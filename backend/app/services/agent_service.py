@@ -25,6 +25,7 @@ except ImportError:  # pragma: no cover - exercised only when SDK is missing
     GENAI_AVAILABLE = False
 
 from app.config import settings
+from app.services.semantic_layer import get_semantic_layer, SemanticLayer, SemanticQueryError
 from app.utils.logger import setup_logger
 from app.services.duckdb_service import get_duckdb_service
 
@@ -81,6 +82,30 @@ class AnalyticsTools:
             f"Executed SQL against DuckDB: {len(rows)} rows. "
             f"Sample: {preview}"
         )
+
+    @staticmethod
+    def semantic_query(query: Dict[str, Any]) -> str:
+        """Execute a structured semantic query instead of raw SQL.
+
+        The LLM should emit JSON with ``measures``, ``dimensions``, and
+        optional ``filters`` rather than free-form SQL. The semantic layer
+        validates the query against the catalog and compiles safe SQL.
+        """
+        try:
+            layer = get_semantic_layer()
+            validated = layer.validate(query)
+            sql = layer.to_sql(validated)
+            db = get_duckdb_service()
+            table = db.english_to_sql(sql)
+            rows = table.to_pylist()
+            return (
+                f"Semantic query compiled to: {sql}\n"
+                f"Returned {len(rows)} rows. Sample: {rows[:10]}"
+            )
+        except SemanticQueryError as exc:
+            return f"Semantic query rejected: {exc}"
+        except Exception as exc:
+            return f"Semantic query execution failed: {exc}"
     
     @staticmethod
     def list_devices() -> str:
@@ -109,7 +134,9 @@ class AIAgentService:
         "You are an expert IoT telemetry analyst. You help users understand "
         "their sensor data, identify patterns, and generate actionable "
         "insights. Use the available tools to query data and create "
-        "visualizations."
+        "visualizations. Prefer the 'semantic_query' tool over 'run_sql' "
+        "whenever possible: emit structured JSON with 'measures', 'dimensions', "
+        "and optional 'filters' instead of raw SQL to avoid injection risks."
     )
     
     def __init__(self, model: Optional[str] = None):
@@ -129,6 +156,7 @@ class AIAgentService:
         return {
             "query_telemetry": tools.query_telemetry,
             "run_sql": tools.run_sql,
+            "semantic_query": tools.semantic_query,
             "list_devices": tools.list_devices,
             "generate_summary": tools.generate_summary,
             "create_visualization": tools.create_visualization,

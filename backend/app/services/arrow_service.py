@@ -129,6 +129,14 @@ class GridifyFlightServer:
     Each dataset is published under a Flight ``descriptor`` whose command is the
     dataset name (e.g. ``b"devices"``). Consumers call ``get_flight_info`` then
     ``do_get`` to stream the columnar data with zero JSON serialization.
+
+    Flight SQL support
+    ------------------
+    When a client sends a SQL statement as the ticket (or as a Flight
+    descriptor command starting with ``b"SQL "``), the server executes the
+    query against DuckDB and streams the resulting record batch back as an
+    Arrow stream. This lets any Arrow Flight SQL client query the telemetry
+    catalog directly without hitting the HTTP REST layer.
     """
 
     def __init__(
@@ -156,6 +164,22 @@ class GridifyFlightServer:
                     )
 
             def get_flight_info(self, context, descriptor):  # noqa: ANN001
+                command = descriptor.command
+                if command and command.startswith(b"SQL "):
+                    sql = command[4:].decode("utf-8", errors="replace").strip()
+                    if not sql:
+                        raise ValueError("Empty SQL command")
+                    from app.services.duckdb_service import get_duckdb_service
+                    db = get_duckdb_service()
+                    table = db.query_to_arrow(sql)
+                    endpoint = _flight.FlightEndpoint(
+                        command,
+                        [_flight.Location.for_grpc_tcp("0.0.0.0", 8815)],
+                    )
+                    return _flight.FlightInfo(
+                        table.schema, descriptor, [endpoint], table.num_rows, -1
+                    )
+
                 ds = descriptor.command.decode() if descriptor.command else "devices"
                 table = telemetry_to_table(provider(), ds)
                 endpoint = _flight.FlightEndpoint(
@@ -167,12 +191,26 @@ class GridifyFlightServer:
                 )
 
             def do_get(self, context, ticket):  # noqa: ANN001
-                ds = ticket.ticket.decode()
+                ticket_str = ticket.ticket.decode("utf-8", errors="replace")
+
+                if ticket_str.startswith("SQL "):
+                    sql = ticket_str[4:].strip()
+                    if not sql:
+                        raise ValueError("Empty SQL ticket")
+                    from app.services.duckdb_service import get_duckdb_service
+                    db = get_duckdb_service()
+                    table = db.query_to_arrow(sql)
+                    return _flight.RecordBatchStream(table)
+
+                ds = ticket_str
+                if ds not in DATASETS:
+                    raise ValueError(
+                        f"Unknown dataset {ds!r}; expected one of {DATASETS!r}"
+                    )
                 table = telemetry_to_table(provider(), ds)
                 return _flight.RecordBatchStream(table)
 
             def do_put(self, context, descriptor, reader):  # noqa: ANN001
-                # Read-and-discard: this server is a read-only publisher.
                 for _ in reader:
                     pass
 

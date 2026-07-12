@@ -19,6 +19,7 @@ from __future__ import annotations
 from typing import Any, Callable, Dict, List, Optional
 
 from app.config import settings
+from app.services.llm_gateway import get_llm_gateway
 from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -120,9 +121,10 @@ class LLMService:
 
             try:
                 attempts.append(label)
-                response = self._completion(**kwargs)
+                gateway = get_llm_gateway()
+                response = gateway.complete(kwargs)
                 content = _extract_content(response)
-                logger.info("LLM served by %s", label)
+                logger.info("LLM served by %s via %s", label, settings.LLM_GATEWAY_PROVIDER)
                 return LLMResult(content=content, model=label, attempts=attempts)
             except Exception as exc:  # noqa: BLE001 - we intentionally try next provider
                 last_error = exc

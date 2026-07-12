@@ -21,17 +21,17 @@ services:
     networks:
       - gridify-network
 
-  # Redis Cache
-  redis:
-    image: redis:7-alpine
-    container_name: gridify-redis
+  # Valkey Cache
+  valkey:
+    image: valkey/valkey:8-alpine
+    container_name: gridify-valkey
     ports:
       - "6379:6379"
-    command: redis-server --appendonly yes --requirepass ""
+    command: valkey-server --appendonly yes --requirepass ""
     volumes:
-      - redis_data:/data
+      - valkey_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "valkey-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -108,6 +108,28 @@ services:
     networks:
       - gridify-network
 
+  # Temporal (optional durable execution alongside Celery)
+  temporal:
+    image: temporalio/auto-setup:1.22
+    container_name: gridify-temporal
+    ports:
+      - "7233:7233"
+      - "8233:8233"
+    environment:
+      - DB=postgres
+      - DB_PORT=5432
+      - POSTGRES_USER=gridify
+      - POSTGRES_PWD=gridify_password
+      - POSTGRES_DB=gridify
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development.yaml
+    volumes:
+      - ./monitoring/temporal-config:/etc/temporal/config:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - gridify-network
+
   # Node Exporter for system metrics
   node-exporter:
     image: prom/node-exporter:latest
@@ -125,16 +147,16 @@ services:
     networks:
       - gridify-network
 
-  # Redis Exporter
+  # Redis Exporter (works with Valkey due to RESP protocol compatibility)
   redis-exporter:
     image: oliver006/redis_exporter:latest
     container_name: gridify-redis-exporter
     ports:
       - "9121:9121"
     environment:
-      REDIS_ADDR: redis://redis:6379
+      REDIS_ADDR: valkey://valkey:6379
     depends_on:
-      redis:
+      valkey:
         condition: service_healthy
     networks:
       - gridify-network
@@ -173,7 +195,7 @@ services:
 volumes:
   postgres_data:
     driver: local
-  redis_data:
+  valkey_data:
     driver: local
   chroma_data:
     driver: local
