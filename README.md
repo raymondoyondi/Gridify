@@ -22,7 +22,7 @@ A smart web dashboard powered by GenAI that lets users use natural language to i
 - **Animations**: Framer Motion, Motion
 
 ### Backend & Data Processing
-- **API Framework**: Python/FastAPI, Express.js
+- **API Framework**: Python/FastAPI
 - **Async Task Queue**: Celery + Redis
 - **Data Processing**:
   - DuckDB (primary analytical engine — English-to-SQL, larger-than-memory analytics)
@@ -88,8 +88,9 @@ pip install -r requirements.txt
 
 3. **Start the development stack**
 ```bash
-npm run docker:compose:up    # Start all services (PostgreSQL, Redis, Chroma, Prometheus, Grafana)
-npm run dev                  # Start frontend dev server
+npm run docker:compose:up    # Start data services (PostgreSQL, Redis, Chroma, Prometheus, Grafana)
+uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload &  # Start FastAPI backend
+npm run dev                  # Start frontend dev server (proxies /api to FastAPI)
 ```
 
 4. **Access the application**
@@ -156,6 +157,14 @@ LLM_CACHE_PREFIX=gridify:llm:
 PROMETHEUS_ENABLED=true
 ```
 
+Backend environment variables (see backend/.env.example):
+
+```
+GEMINI_API_KEY=your_gemini_api_key_here
+FRONTEND_URL=http://localhost:3000
+PYTHON_ENV=development
+```
+
 ### Docker Compose Services
 
 The development stack includes:
@@ -202,7 +211,7 @@ Includes:
 
 ### System Architecture
 - **Frontend**: React components with ECharts, React Flow, Framer Motion for interactive dashboards
-- **Backend**: FastAPI + Express with async task processing via Celery
+- **Backend**: FastAPI with async task processing via Celery
 - **Data Pipeline**: PostgreSQL → DuckDB (Apache Arrow, zero-copy) → native Gemini SDK for AI insights
 - **Vector Store**: Chroma/Qdrant for semantic search and RAG
 - **Infrastructure**: Kubernetes with auto-scaling, monitored by Prometheus/Grafana
