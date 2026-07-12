@@ -12,6 +12,11 @@ except ImportError:
     
 from app.utils.logger import setup_logger
 from app.utils.cache import get_llm_cache, make_cache_key
+from app.schemas.dashboard import (
+    DashboardCommandResult,
+    build_gemini_response_schema,
+)
+from pydantic import ValidationError
 
 logger = setup_logger(__name__)
 
@@ -101,12 +106,7 @@ class GeminiService:
                 telemetry=telemetry
             )
             
-            response = self.client.generate_content(
-                system_prompt,
-                generation_config={
-                    "response_mime_type": "application/json",
-                }
-            )
+            response = self._generate_content(system_prompt)
             
             # Parse response
             response_text = response.text
@@ -116,20 +116,80 @@ class GeminiService:
                 response_text = response_text[:-3]
             
             parsed_response = json.loads(response_text.strip())
-            
-            logger.info("Gemini command processed successfully")
-            result = {
-                "aiSummary": parsed_response.get("aiSummary", []),
-                "feedbackMessage": parsed_response.get("feedbackMessage", ""),
-                "newWidgets": parsed_response.get("newWidgets", current_widgets),
-                "status": "Nominal"
-            }
+
+            # Enforce the strict Pydantic V2 contract. If the model drifts from
+            # the schema we raise, and the caller falls back to a safe response
+            # rather than shipping a broken layout to React Flow / Framer Motion.
+            validated = self._validate_response(parsed_response, current_widgets)
+
+            logger.info("Gemini command processed and validated successfully")
+            result = validated.model_dump()
             self.cache.set(cache_key, result)
             return result
             
         except Exception as e:
             logger.error(f"Error processing command with Gemini: {str(e)}")
             raise
+    
+    def _generate_content(self, system_prompt: str) -> Any:
+        """Call Gemini, constraining output to our schema when supported.
+
+        Different ``google-generativeai`` versions accept ``response_schema`` in
+        slightly different forms. We attempt native structured output first and
+        transparently fall back to plain JSON mode (still validated downstream
+        by Pydantic) if the installed SDK rejects the schema.
+        """
+        assert self.client is not None
+        try:
+            return self.client.generate_content(
+                system_prompt,
+                generation_config={
+                    "response_mime_type": "application/json",
+                    # Constrain generation to our strict UI schema so the model
+                    # cannot emit widget shapes that would break the frontend.
+                    "response_schema": build_gemini_response_schema(),
+                },
+            )
+        except (TypeError, ValueError) as exc:
+            logger.warning(
+                "SDK rejected response_schema (%s); retrying with JSON mode only", exc
+            )
+            return self.client.generate_content(
+                system_prompt,
+                generation_config={"response_mime_type": "application/json"},
+            )
+
+    def _validate_response(
+        self,
+        parsed_response: Dict[str, Any],
+        current_widgets: List[Dict[str, Any]],
+    ) -> DashboardCommandResult:
+        """Validate raw model output against the strict Pydantic contract.
+
+        On validation failure we keep the safe parts (summary/feedback) and
+        preserve the *existing* widgets rather than applying a malformed layout.
+        """
+        try:
+            return DashboardCommandResult.model_validate(parsed_response)
+        except ValidationError as exc:
+            logger.warning("LLM output failed schema validation: %s", exc)
+            # Degrade gracefully: keep textual insight, drop invalid widgets.
+            summary = parsed_response.get("aiSummary", []) if isinstance(parsed_response, dict) else []
+            safe = {
+                "aiSummary": summary,
+                "feedbackMessage": (
+                    "Response received but the proposed layout was invalid, so "
+                    "the current dashboard was preserved."
+                ),
+                "newWidgets": current_widgets,
+                "status": "Nominal (Schema Guard)",
+            }
+            try:
+                return DashboardCommandResult.model_validate(safe)
+            except ValidationError:
+                # Even the existing widgets are non-conforming: return no widgets.
+                safe["newWidgets"] = []
+                return DashboardCommandResult.model_validate(safe)
     
     def _build_prompt(self, query: str, current_widgets: List[Dict[str, Any]], telemetry: Dict[str, Any]) -> str:
         """Build system prompt for Gemini.

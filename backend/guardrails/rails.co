@@ -1,0 +1,20 @@
+# Colang rails for Gridify.
+#
+# These flows back the `self check input` / `self check output` rails declared
+# in config.yml. NeMo Guardrails evaluates the `self_check_input` /
+# `self_check_output` prompts and refuses when they return "yes".
+
+define bot refuse to respond
+  "I can't help with that request. I'm the Gridify analytics assistant and can only help with dashboard, telemetry, and visualization questions."
+
+define flow self check input
+  $allowed = execute self_check_input
+  if not $allowed
+    bot refuse to respond
+    stop
+
+define flow self check output
+  $allowed = execute self_check_output
+  if not $allowed
+    bot refuse to respond
+    stop

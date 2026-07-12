@@ -1,12 +1,14 @@
 """Application configuration using Pydantic Settings."""
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
-    
+
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=True, extra="ignore")
+
     # Core API
     GEMINI_API_KEY: str = ""
     FRONTEND_URL: str = "http://localhost:3000"
@@ -33,7 +35,16 @@ class Settings(BaseSettings):
     LITELLM_API_KEY: Optional[str] = None
     LLM_PROVIDER: str = "gemini"
     LLM_MODEL: str = "gemini-3.5-flash"
+    LLM_MAX_RETRIES: int = 2
+
+    # Local LLM fallback (Mistral via vLLM OpenAI-compatible endpoint).
+    # Used automatically by LLMService when the hosted model is rate-limited.
     VLLM_BASE_URL: Optional[str] = None
+    VLLM_MODEL: str = "mistralai/Mistral-7B-Instruct-v0.3"
+    VLLM_API_KEY: Optional[str] = None
+
+    # AI safety guardrails (prompt-injection protection).
+    GUARDRAILS_ENABLED: bool = True
     
     # LLM Response Caching
     LLM_CACHE_ENABLED: bool = True
@@ -47,10 +58,6 @@ class Settings(BaseSettings):
     # Native Google GenAI SDK powered agent workflows (replaces LangChain).
     USE_AI_AGENT: bool = True
     ASYNC_PROCESSING_ENABLED: bool = True
-    
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
 
 
 settings = Settings()

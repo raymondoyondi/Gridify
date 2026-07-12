@@ -11,12 +11,16 @@ from app.config import settings
 from app.utils.logger import setup_logger
 from app.utils.telemetry_data import get_default_telemetry
 from app.services.gemini_service import GeminiService
+from app.services.guardrails import get_guardrails_service
 
 logger = setup_logger(__name__)
 router = APIRouter()
 
 # Initialize Gemini service
 gemini_service = GeminiService(api_key=settings.GEMINI_API_KEY)
+
+# Initialize guardrails (prompt-injection protection).
+guardrails = get_guardrails_service()
 
 
 class GeminiCommandRequest(BaseModel):
@@ -49,7 +53,20 @@ async def handle_gemini_command(request: GeminiCommandRequest) -> GeminiCommandR
     if not request.query:
         logger.error("Gemini command received without query")
         raise HTTPException(status_code=400, detail="Missing query string")
-    
+
+    # Guardrails: block prompt-injection / jailbreak / secret-exfiltration
+    # attempts before the query ever reaches the LLM.
+    if settings.GUARDRAILS_ENABLED:
+        verdict = guardrails.check_input(request.query)
+        if not verdict.allowed:
+            logger.warning(
+                "Guardrail (%s) blocked query: %s", guardrails.backend, verdict.matched_rules
+            )
+            raise HTTPException(
+                status_code=400,
+                detail=verdict.reason or "Query blocked by content guardrails.",
+            )
+
     logger.info(f"Processing Gemini command: {request.query}")
     
     try:

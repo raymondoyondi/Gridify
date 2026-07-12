@@ -2,7 +2,7 @@
 
 from typing import List, Dict, Any, Optional
 import json
-from backend.app.config import settings
+from app.config import settings
 
 
 class ChromaVectorStore:
