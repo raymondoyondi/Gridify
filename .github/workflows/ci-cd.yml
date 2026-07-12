@@ -177,11 +177,33 @@ jobs:
           pip install -r requirements.txt
       
       - name: Run Playwright tests
-        run: npx start-server-and-test 'sh -c "uvicorn backend.main:app --host 0.0.0.0 --port 8000 & npm run dev -- --port 3000"' http://127.0.0.1:3000 'npx playwright test'
-        env:
-          VITE_API_URL: http://localhost:8000
-          NODE_ENV: test
-          PYTHON_ENV: development
+        run: |
+          set -e
+          trap 'kill $(jobs -p) 2>/dev/null || true' EXIT
+          
+          uvicorn backend.main:app --host 0.0.0.0 --port 8000 &
+          for i in $(seq 1 120); do
+            if curl -sf http://127.0.0.1:8000/health > /dev/null; then
+              break
+            fi
+            if [ "$i" -eq 120 ]; then
+              echo "Backend failed to start within 60 seconds"
+              exit 1
+            fi
+            sleep 0.5
+          done
+          
+          npm run dev -- --port 3000 &
+          for i in $(seq 1 120); do
+            if curl -sf http://127.0.0.1:3000 > /dev/null; then
+              break
+            fi
+            if [ "$i" -eq 120 ]; then
+              echo "Frontend failed to start within 60 seconds"
+              exit 1
+            fi
+            sleep 0.5
+          done
       
       - name: Upload Playwright report
         if: always()
