@@ -82,7 +82,7 @@ spec:
           capabilities:
             drop:
             - ALL
-
+            
 ---
 # Frontend Deployment
 apiVersion: apps/v1
@@ -144,7 +144,7 @@ spec:
           runAsUser: 101
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
-
+          
 ---
 # Celery Worker Deployment
 apiVersion: apps/v1
@@ -195,7 +195,7 @@ spec:
         securityContext:
           runAsNonRoot: true
           runAsUser: 1000
-
+          
 ---
 # Service for API
 apiVersion: v1
@@ -214,7 +214,7 @@ spec:
     port: 80
     targetPort: 3000
     protocol: TCP
-
+    
 ---
 # Service for Frontend
 apiVersion: v1
@@ -233,7 +233,7 @@ spec:
     port: 80
     targetPort: 80
     protocol: TCP
-
+    
 ---
 # HorizontalPodAutoscaler for API
 apiVersion: autoscaling/v2
@@ -274,7 +274,7 @@ spec:
       - type: Percent
         value: 100
         periodSeconds: 30
-
+        
 ---
 # ConfigMap for application config
 apiVersion: v1
@@ -286,6 +286,6 @@ data:
   LOG_LEVEL: "INFO"
   DUCKDB_PATH: "/data/gridify.duckdb"
   USE_POLARS: "true"
-  USE_LANGCHAIN: "true"
+  USE_AI_AGENT: "true"
   ASYNC_PROCESSING_ENABLED: "true"
   PROMETHEUS_ENABLED: "true"
