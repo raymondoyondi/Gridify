@@ -33,10 +33,11 @@ A smart web dashboard powered by GenAI that lets users use natural language to i
 
 ### AI & Machine Learning
 - **LLM Integration**:
-  - Google Gemini API
-  - LangChain (structured AI agent workflows)
+  - Google Gemini API (native `@google/genai` / `google-generativeai` SDKs — no LangChain overhead)
   - LlamaIndex (RAG pipelines)
   - LiteLLM (unified multi-provider interface)
+- **LLM Response Caching**: Redis-backed cache for repeated dashboard queries (sub-100ms cache hits)
+- **LLM Evaluation**: Promptfoo suite grades text-to-chart/summary prompts in CI
 - **Self-hosted LLMs**: vLLM, Hugging Face TGI
 - **Vector Embeddings**: Chroma, Qdrant
 - **Model Tracking**: MLflow, Weights & Biases
@@ -207,7 +208,7 @@ Includes:
 ### Data Intelligence
 - **Natural Language Queries**: Convert English to SQL via Gemini AI
 - **Real-time Analytics**: DuckDB for instant queries on large datasets
-- **Smart Summaries**: LangChain agents generate contextual insights
+- **Smart Summaries**: Native Gemini SDK agents generate contextual insights
 - **Vector Search**: Semantic search across documentation and data
 
 ### Visualization
