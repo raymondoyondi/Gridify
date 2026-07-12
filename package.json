@@ -17,6 +17,8 @@
     "e2e": "playwright test",
     "e2e:debug": "playwright test --debug",
     "e2e:ui": "playwright test --ui",
+    "eval": "promptfoo eval -c evals/promptfooconfig.yaml",
+    "eval:view": "promptfoo view",
     "docker:build": "docker build -t gridify:latest .",
     "docker:compose:up": "docker-compose up -d",
     "docker:compose:down": "docker-compose down",
