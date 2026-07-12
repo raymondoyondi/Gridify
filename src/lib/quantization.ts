@@ -59,7 +59,10 @@ export function dequantizeBatch(vectors: QuantizedVector[]): number[][] {
 }
 
 /** Cosine similarity computed directly on int8 codes (avoids dequant round-trip). */
-export function quantizedCosine(a: QuantizedVector, b: QuantizedVector): number {
+export function quantizedCosine(
+  a: QuantizedVector,
+  b: QuantizedVector,
+): number {
   const n = Math.min(a.codes.length, b.codes.length);
   if (n === 0) return 0;
   let dot = 0;

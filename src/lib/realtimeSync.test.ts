@@ -44,18 +44,22 @@ describe("BroadcastChannelProvider + DashboardSync", () => {
     local.stop();
   });
 
-  it("provider delivers both messages (staleness handled by DashboardSync)", async () => {
+  it("delivers messages between two providers in the same room", async () => {
     const received: SyncMessage[] = [];
-    const provider = new BroadcastChannelProvider();
-    await provider.connect("room-2");
-    provider.onMessage((m) => received.push(m));
+    const a = new BroadcastChannelProvider();
+    const b = new BroadcastChannelProvider();
+    await a.connect("room-2");
+    await b.connect("room-2");
+    b.onMessage((m) => received.push(m));
 
-    provider.broadcast({ kind: "update", widgets: widgetsB, revision: 100 });
-    provider.broadcast({ kind: "update", widgets: widgetsA, revision: 50 });
+    a.broadcast({ kind: "update", widgets: widgetsB, revision: 100 });
+    a.broadcast({ kind: "update", widgets: widgetsA, revision: 50 });
 
     await new Promise((r) => setTimeout(r, 0));
     expect(received).toHaveLength(2);
-    provider.disconnect();
+    expect(received.every((m) => m.sender === (a as any)["sender"])).toBe(true);
+    a.disconnect();
+    b.disconnect();
   });
 
   it("createProvider returns the requested transport", () => {

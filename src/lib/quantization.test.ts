@@ -46,7 +46,7 @@ describe("scalar quantization (float32 -> int8)", () => {
 
   it("reports a ~4x storage reduction", () => {
     const est = storageEstimate(
-      Array.from({ length: 100 }, () => new Array(64).fill(0))
+      Array.from({ length: 100 }, () => new Array(64).fill(0)),
     );
     expect(est.ratio).toBeCloseTo(4, 1);
     expect(est.int8Bytes * 4).toBe(est.float32Bytes);

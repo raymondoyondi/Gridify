@@ -19,6 +19,13 @@ import { quantizeBatch, QuantizedVector } from "./quantization";
 
 export const DEFAULT_CHUNK_SIZE = 256 * 1024; // 256 KiB
 
+/** Serialized form of a quantized vector (codes as a plain array for JSON). */
+export interface SerializedQuantizedVector {
+  codes: number[];
+  scale: number;
+  min: number;
+}
+
 export interface ModelManifest {
   name: string;
   totalChunks: number;
@@ -26,7 +33,7 @@ export interface ModelManifest {
   chunkSize: number;
   etag: string;
   /** Optional quantized semantic index accompanying the model. */
-  quantizedIndex?: QuantizedVector[];
+  quantizedIndex?: SerializedQuantizedVector[];
 }
 
 // --------------------------------------------------------------------------- //
@@ -57,7 +64,7 @@ class CacheStorageStore implements ChunkStore {
       key,
       new Response(value, {
         headers: { "Content-Type": "application/octet-stream" },
-      })
+      }),
     );
   }
 
@@ -82,9 +89,25 @@ class CacheStorageStore implements ChunkStore {
   }
 }
 
-/** In-memory fallback store (Node / SSR / tests). */
+/**
+ * In-memory fallback store (Node / SSR / tests). Stores are shared per
+ * `cacheName` via a module-level registry so that caching to a store and later
+ * loading from it (different `makeStore` calls) observe the same data — the
+ * same guarantee the Cache Storage API provides in the browser.
+ */
+const __memoryStores = new Map<string, Map<string, ArrayBuffer>>();
+
 class MemoryStore implements ChunkStore {
-  private map = new Map<string, ArrayBuffer>();
+  private map: Map<string, ArrayBuffer>;
+
+  constructor(cacheName: string) {
+    let store = __memoryStores.get(cacheName);
+    if (!store) {
+      store = new Map<string, ArrayBuffer>();
+      __memoryStores.set(cacheName, store);
+    }
+    this.map = store;
+  }
 
   async put(key: string, value: ArrayBuffer): Promise<void> {
     this.map.set(key, value);
@@ -109,7 +132,7 @@ function makeStore(cacheName: string): ChunkStore {
   } catch {
     /* fall through */
   }
-  return new MemoryStore();
+  return new MemoryStore(cacheName);
 }
 
 // --------------------------------------------------------------------------- //
@@ -137,7 +160,7 @@ function simpleEtag(data: ArrayBuffer): string {
 export async function cacheModel(
   name: string,
   data: ArrayBuffer,
-  opts: { cacheName?: string; chunkSize?: number } = {}
+  opts: { cacheName?: string; chunkSize?: number } = {},
 ): Promise<ModelManifest> {
   const chunkSize = opts.chunkSize ?? DEFAULT_CHUNK_SIZE;
   const store = makeStore(opts.cacheName ?? "gridify-models");
@@ -168,10 +191,16 @@ export async function cacheModel(
 export async function cacheQuantizedIndex(
   name: string,
   index: number[][],
-  opts: { cacheName?: string } = {}
+  opts: { cacheName?: string } = {},
 ): Promise<ModelManifest> {
   const store = makeStore(opts.cacheName ?? "gridify-models");
-  const quantized = quantizeBatch(index);
+  // Serialize codes as plain arrays so they survive the JSON round-trip
+  // (Int8Array loses its `.length` under JSON.stringify).
+  const quantized = quantizeBatch(index).map((q) => ({
+    codes: Array.from(q.codes),
+    scale: q.scale,
+    min: q.min,
+  }));
   const manifest: ModelManifest = {
     name,
     totalChunks: 1,
@@ -197,9 +226,9 @@ export async function loadModel(
     fetchChunk?: (
       name: string,
       index: number,
-      manifest: ModelManifest
+      manifest: ModelManifest,
     ) => Promise<ArrayBuffer | null>;
-  } = {}
+  } = {},
 ): Promise<{ data: ArrayBuffer; manifest: ModelManifest } | null> {
   const store = makeStore(opts.cacheName ?? "gridify-models");
   const manifestBuf = await store.get(manifestKey(name));
@@ -226,19 +255,26 @@ export async function loadModel(
 /** Read a previously cached quantized index, if present. */
 export async function loadQuantizedIndex(
   name: string,
-  opts: { cacheName?: string } = {}
+  opts: { cacheName?: string } = {},
 ): Promise<QuantizedVector[] | null> {
   const store = makeStore(opts.cacheName ?? "gridify-models");
   const manifestBuf = await store.get(manifestKey(name));
   if (!manifestBuf) return null;
   const manifest = decodeJSON<ModelManifest>(manifestBuf);
-  return manifest.quantizedIndex ?? null;
+  // Rebuild Int8Array codes from the plain arrays stored in the manifest.
+  const idx = manifest.quantizedIndex;
+  if (!idx) return null;
+  return idx.map((q) => ({
+    codes: Int8Array.from(q.codes as unknown as number[]),
+    scale: q.scale,
+    min: q.min,
+  }));
 }
 
 /** Clear one model's chunks + manifest from the cache. */
 export async function invalidateModel(
   name: string,
-  opts: { cacheName?: string } = {}
+  opts: { cacheName?: string } = {},
 ): Promise<void> {
   const store = makeStore(opts.cacheName ?? "gridify-models");
   const manifestBuf = await store.get(manifestKey(name));

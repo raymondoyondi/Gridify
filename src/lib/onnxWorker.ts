@@ -15,9 +15,11 @@ async function init(modelUrl: string, modelDim = 64): Promise<void> {
 }
 
 /** Quantize a float32 embedding to int8 to shrink the worker -> main payload. */
-function quantize(
-  vec: ArrayLike<number>
-): { codes: number[]; scale: number; min: number } {
+function quantizeVec(vec: ArrayLike<number>): {
+  codes: number[];
+  scale: number;
+  min: number;
+} {
   let min = Infinity;
   let max = -Infinity;
   for (let i = 0; i < vec.length; i++) {
@@ -52,13 +54,16 @@ function hashEmbedding(text: string, modelDim: number): number[] {
 
 async function embed(
   texts: string[],
-  quantize = false
-): Promise<{ embeddings: number[][]; quantized?: ReturnType<typeof quantize>[] }> {
+  returnQuantized = false,
+): Promise<{
+  embeddings: number[][];
+  quantized?: ReturnType<typeof quantizeVec>[];
+}> {
   if (!session) {
     throw new Error("ONNX worker not initialized");
   }
   const results: number[][] = [];
-  const quantized: ReturnType<typeof quantize>[] = [];
+  const quantized: ReturnType<typeof quantizeVec>[] = [];
   for (const text of texts) {
     const vec = hashEmbedding(text, dim);
     const tensor = {
@@ -70,21 +75,26 @@ async function embed(
     const data = out[outputName].data as Float32Array;
     const full = Array.from(data);
     results.push(full);
-    if (quantize) quantized.push(quantize(full));
+    if (returnQuantized) quantized.push(quantizeVec(full));
   }
-  return { embeddings: results, quantized: quantize ? quantized : undefined };
+  return {
+    embeddings: results,
+    quantized: returnQuantized ? quantized : undefined,
+  };
 }
 
 export {};
 
-self.onmessage = async (e: MessageEvent<{
-  type: string;
-  requestId: number;
-  modelUrl?: string;
-  modelDim?: number;
-  texts?: string[];
-  quantize?: boolean;
-}>) => {
+self.onmessage = async (
+  e: MessageEvent<{
+    type: string;
+    requestId: number;
+    modelUrl?: string;
+    modelDim?: number;
+    texts?: string[];
+    quantize?: boolean;
+  }>,
+) => {
   const { type, requestId, modelUrl, modelDim, texts, quantize } = e.data;
   try {
     if (type === "init") {

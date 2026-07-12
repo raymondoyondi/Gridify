@@ -40,7 +40,9 @@ describe("chunked, resumable model cache", () => {
       [1, 2, 3],
       [4, 5, 6],
     ];
-    await cacheQuantizedIndex("semantic-index", index, { cacheName: "test-cache" });
+    await cacheQuantizedIndex("semantic-index", index, {
+      cacheName: "test-cache",
+    });
     const restored = await loadQuantizedIndex("semantic-index", {
       cacheName: "test-cache",
     });
@@ -57,7 +59,9 @@ describe("chunked, resumable model cache", () => {
 
   it("invalidates a model completely", async () => {
     const data = new Uint8Array(1024);
-    await cacheModel("to-del", data.buffer.slice(0), { cacheName: "test-cache" });
+    await cacheModel("to-del", data.buffer.slice(0), {
+      cacheName: "test-cache",
+    });
     await invalidateModel("to-del", { cacheName: "test-cache" });
     expect(await loadModel("to-del", { cacheName: "test-cache" })).toBeNull();
   });

@@ -67,7 +67,7 @@ class InMemoryLayoutRepository(LayoutRepository):
     def save(self, layout: DashboardLayout) -> DashboardLayout:
         now = datetime.now(timezone.utc).isoformat()
         existing = self._store.get(layout.id)
-        layout.created_at = existing.created_at or now
+        layout.created_at = existing.created_at if existing else now
         layout.updated_at = now
         self._store[layout.id] = layout
         return layout

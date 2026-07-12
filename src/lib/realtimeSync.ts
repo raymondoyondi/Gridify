@@ -53,7 +53,10 @@ function hubPublish(room: string, msg: SyncMessage): void {
   if (!subs) return;
   for (const cb of subs) cb(msg);
 }
-function hubSubscribe(room: string, cb: (msg: SyncMessage) => void): () => void {
+function hubSubscribe(
+  room: string,
+  cb: (msg: SyncMessage) => void,
+): () => void {
   let subs = __hubs.get(room);
   if (!subs) {
     subs = new Set();
@@ -92,7 +95,11 @@ export class BroadcastChannelProvider implements RealtimeProvider {
   }
 
   broadcast(message: Omit<SyncMessage, "room" | "sender">): void {
-    const full: SyncMessage = { ...message, room: this.room, sender: this.sender };
+    const full: SyncMessage = {
+      ...message,
+      room: this.room,
+      sender: this.sender,
+    };
     if (this.channel) {
       this.channel.postMessage(full);
     } else {
@@ -142,16 +149,21 @@ export class YjsProvider implements RealtimeProvider {
     let Y: any;
     let WebsocketProvider: any;
     try {
-      Y = await import("yjs");
-      ({ WebsocketProvider } = await import("y-websocket"));
+      // Non-literal specifiers keep these optional deps out of the production
+      // bundle and let `tsc` pass when they are not installed. Install
+      // 'yjs' + 'y-websocket' to enable multiplayer CRDT sync.
+      const ySpec: string = "yjs";
+      const wsSpec: string = "y-websocket";
+      Y = await import(/* @vite-ignore */ ySpec);
+      ({ WebsocketProvider } = await import(/* @vite-ignore */ wsSpec));
     } catch (err) {
       throw new Error(
         "YjsProvider requires 'yjs' and 'y-websocket' to be installed. " +
-          "Add them as dependencies to enable multiplayer CRDT sync."
+          "Add them as dependencies to enable multiplayer CRDT sync.",
       );
     }
     this.doc = new Y.Doc();
-    this.array = this.doc.getArray<Widget>("widgets");
+    this.array = (this.doc as any).getArray("widgets");
     new WebsocketProvider(this.wsUrl, room, this.doc);
     this.array.observe(() => {
       const msg: SyncMessage = {
@@ -205,16 +217,21 @@ export class SupabaseProvider implements RealtimeProvider {
   async connect(room: string): Promise<void> {
     this.room = room;
     if (!this.url) return; // no-op when unconfigured
-    const mod = await import("@supabase/supabase-js").catch(() => null);
+    const supaSpec: string = "@supabase/supabase-js";
+    const mod = await import(/* @vite-ignore */ supaSpec).catch(() => null);
     if (!mod) return;
     this.client = mod.createClient(this.url, this.anonKey);
     this.client
       .channel(`layout:${room}`)
-      .on("broadcast", { event: "sync" }, (payload: { payload: SyncMessage }) => {
-        if (payload.payload.sender !== this.sender) {
-          for (const cb of this.listeners) cb(payload.payload);
-        }
-      })
+      .on(
+        "broadcast",
+        { event: "sync" },
+        (payload: { payload: SyncMessage }) => {
+          if (payload.payload.sender !== this.sender) {
+            for (const cb of this.listeners) cb(payload.payload);
+          }
+        },
+      )
       .subscribe();
   }
 
