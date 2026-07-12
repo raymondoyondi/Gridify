@@ -16,6 +16,8 @@
  * block the main UI thread.
  */
 
+import { cacheQuantizedIndex, dequantizeBatch, loadQuantizedIndex } from "./modelStreamCache";
+
 export interface RAGChunk {
   id: string;
   text: string;
@@ -208,9 +210,25 @@ export class HybridRAG {
     }));
   }
 
-  /** Load the cached semantic index; falls back to local docs on any failure. */
+  /**
+   * Load the cached semantic index. On a warm cache we restore the *quantized*
+   * index (int8) from the Cache Storage API so no ONNX re-embedding happens on
+   * page refresh. On a cold cache we build/load embeddings and persist a
+   * quantized copy for next time.
+   */
   async loadIndex(remoteUrl?: string): Promise<void> {
     if (this.index.length > 0) return;
+
+    const cached = await loadQuantizedIndex("semantic-index");
+    if (cached) {
+      const embeddings = dequantizeBatch(cached);
+      this.index = LOCAL_DOCUMENTS.map((d, i) => ({
+        ...d,
+        embedding: embeddings[i] ?? hashEmbedding(d.text, this.embedder.dim),
+      }));
+      return;
+    }
+
     if (remoteUrl) {
       try {
         const res = await fetch(remoteUrl, { headers: { Accept: "application/json" } });
@@ -226,6 +244,7 @@ export class HybridRAG {
               }
             }
             this.index = payload.chunks;
+            await this._persistQuantizedIndex();
             return;
           }
         }
@@ -234,6 +253,18 @@ export class HybridRAG {
       }
     }
     await this._buildFromLocal();
+    await this._persistQuantizedIndex();
+  }
+
+  /** Quantize the current index to int8 and cache it for resumable reloads. */
+  private async _persistQuantizedIndex(): Promise<void> {
+    if (this.index.length === 0) return;
+    const vectors = this.index.map((c) => c.embedding ?? hashEmbedding(c.text, this.embedder.dim));
+    try {
+      await cacheQuantizedIndex("semantic-index", vectors);
+    } catch {
+      // Cache Storage unavailable (e.g. SSR) — ignore; reload will rebuild.
+    }
   }
 
   /** Local cosine-match. Returns the top-k chunks for the query. */
