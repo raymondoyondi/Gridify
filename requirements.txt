@@ -6,10 +6,12 @@ python-dotenv>=1.0.0
 httpx>=0.28.1
 
 # Data Processing
+# DuckDB is the primary analytical engine; Arrow is the zero-copy interchange
+# format to the frontend/LLM. Polars is intentionally scoped to the ML
+# microservice (feature engineering) only.
 polars>=1.0.0
 pyarrow>=15.0.0
 duckdb>=1.0.0
-pandas>=2.2.3
 
 # Async & Task Queue
 celery>=5.4.0

@@ -165,7 +165,7 @@ services:
       PYTHONUNBUFFERED: "1"
       DUCKDB_PATH: /data/gridify.duckdb
     command: >
-      sh -c "pip install duckdb polars pandas &&
+      sh -c "pip install duckdb &&
       python -c 'import duckdb; print(\"DuckDB ready\")'"
     networks:
       - gridify-network

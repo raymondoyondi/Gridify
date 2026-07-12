@@ -285,7 +285,6 @@ metadata:
 data:
   LOG_LEVEL: "INFO"
   DUCKDB_PATH: "/data/gridify.duckdb"
-  USE_POLARS: "true"
   USE_AI_AGENT: "true"
   ASYNC_PROCESSING_ENABLED: "true"
   PROMETHEUS_ENABLED: "true"
