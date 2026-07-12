@@ -18,10 +18,14 @@ from __future__ import annotations
 import hashlib
 import json
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Type, TypeVar
+
+from pydantic import BaseModel, ValidationError
 
 from app.config import settings
 from app.utils.logger import setup_logger
+
+_ModelT = TypeVar("_ModelT", bound=BaseModel)
 
 logger = setup_logger(__name__)
 
@@ -137,6 +141,61 @@ class LLMCache:
             logger.warning("LLM cache write failed: %s", exc)
             self._fallback.set(key, serialized, self.ttl)
           
+    def get_validated(
+        self, key: str, model_type: "Type[_ModelT]"
+    ) -> "Optional[_ModelT]":
+        """Return a *re-validated* Pydantic model from cache.
+
+        Unlike :meth:`get`, which hands back a raw dict, this reconstructs the
+        fully verified Pydantic model (``DashboardCommandResult`` and friends)
+        directly from the cached JSON. The cost of re-validating the dashboard
+        schema layout on every repetitive user query is therefore eliminated: the
+        schema was already validated and stored once, and a cache hit returns the
+        same verified model without the LLM or a second validation pass.
+        """
+        if not self.enabled:
+            return None
+        raw: Optional[str] = None
+        try:
+            raw = self._redis.get(key) if self._redis else self._fallback.get(key)
+        except Exception as exc:  # pragma: no cover - depends on env
+            logger.warning("LLM validated cache read failed: %s", exc)
+            raw = self._fallback.get(key)
+
+        if raw is None:
+            self.misses += 1
+            return None
+
+        self.hits += 1
+        try:
+            return model_type.model_validate(json.loads(raw))
+        except (json.JSONDecodeError, ValidationError) as exc:  # pragma: no cover - corrupt entry
+            logger.warning("Cached validated model unparseable, dropping: %s", exc)
+            return None
+
+    def set_validated(self, key: str, model: BaseModel) -> None:
+        """Cache a *verified* Pydantic model (schema layout included) directly.
+
+        The serialized payload is the model's own ``model_dump_json``, so a
+        ``get_validated`` call can rebuild the exact same verified schema without
+        re-running the validation the generator already paid for.
+        """
+        if not self.enabled:
+            return
+        try:
+            serialized = model.model_dump_json()
+        except (TypeError, ValueError) as exc:
+            logger.warning("Skipping validated cache write, model not serializable: %s", exc)
+            return
+        try:
+            if self._redis:
+                self._redis.setex(key, self.ttl, serialized)
+            else:
+                self._fallback.set(key, serialized, self.ttl)
+        except Exception as exc:  # pragma: no cover - depends on env
+            logger.warning("LLM validated cache write failed: %s", exc)
+            self._fallback.set(key, serialized, self.ttl)
+
     def clear(self) -> None:
         """Clear cached entries (in-memory always; Redis by prefix)."""
         self._fallback.clear()

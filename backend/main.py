@@ -17,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.routers import telemetry, gemini
+from app.middleware.guardrail_middleware import AsyncGuardrailMiddleware
 from app.utils.logger import setup_logger
 
 # Setup logging
@@ -53,6 +54,11 @@ app.add_middleware(
 # Include routers
 app.include_router(telemetry.router, prefix="/api", tags=["telemetry"])
 app.include_router(gemini.router, prefix="/api", tags=["gemini"])
+
+# Async guardrails at the network boundary: prompt-injection scans run off the
+# synchronous request path (edge service or worker thread) so TTFT stays snappy.
+if settings.GUARDRAILS_ENABLED:
+    app.add_middleware(AsyncGuardrailMiddleware)
 
 
 @app.get("/health")
