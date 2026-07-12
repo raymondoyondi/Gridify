@@ -144,9 +144,14 @@ CHROMA_PORT=8000
 # AI/LLM Configuration
 LLM_PROVIDER=gemini
 LLM_MODEL=gemini-3.5-flash
-USE_LANGCHAIN=true
+USE_AI_AGENT=true          # native google-generativeai agent workflows (no LangChain)
 USE_POLARS=true
 ASYNC_PROCESSING_ENABLED=true
+
+# LLM Response Caching (Redis-backed, sub-100ms cache hits)
+LLM_CACHE_ENABLED=true
+LLM_CACHE_TTL=3600         # seconds
+LLM_CACHE_PREFIX=gridify:llm:
 
 # Monitoring
 PROMETHEUS_ENABLED=true
@@ -199,7 +204,7 @@ Includes:
 ### System Architecture
 - **Frontend**: React components with ECharts, React Flow, Framer Motion for interactive dashboards
 - **Backend**: FastAPI + Express with async task processing via Celery
-- **Data Pipeline**: Polars for fast processing → DuckDB for analytics → LangChain for AI insights
+- **Data Pipeline**: Polars for fast processing → DuckDB for analytics → native Gemini SDK for AI insights
 - **Vector Store**: Chroma/Qdrant for semantic search and RAG
 - **Infrastructure**: Kubernetes with auto-scaling, monitored by Prometheus/Grafana
 
