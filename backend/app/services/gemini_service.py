@@ -9,8 +9,9 @@ try:
     GENAI_AVAILABLE = True
 except ImportError:
     GENAI_AVAILABLE = False
-
+    
 from app.utils.logger import setup_logger
+from app.utils.cache import get_llm_cache, make_cache_key
 
 logger = setup_logger(__name__)
 
@@ -26,6 +27,7 @@ class GeminiService:
         """
         self.api_key = api_key
         self.client: Optional[Any] = None
+        self.cache = get_llm_cache()
         self._initialize_client()
     
     def _initialize_client(self) -> None:
@@ -73,6 +75,25 @@ class GeminiService:
             raise ValueError("Gemini service not available")
         
         assert self.client is not None
+        
+        # Check the LLM response cache first. Identical dashboard queries
+        # (same query + widgets + telemetry snapshot) are very common, so a
+        # cache hit returns sub-100ms without an API round trip.
+        cache_key = make_cache_key(
+            "gemini:command",
+            {
+                "model": "gemini-1.5-flash",
+                "query": query,
+                "widgets": current_widgets,
+                "telemetry": telemetry,
+            },
+        )
+        cached = self.cache.get(cache_key)
+        if cached is not None:
+            logger.info("Gemini command served from cache")
+            cached["cached"] = True
+            return cached
+            
         try:
             system_prompt = self._build_prompt(
                 query=query,
@@ -97,12 +118,14 @@ class GeminiService:
             parsed_response = json.loads(response_text.strip())
             
             logger.info("Gemini command processed successfully")
-            return {
+            result = {
                 "aiSummary": parsed_response.get("aiSummary", []),
                 "feedbackMessage": parsed_response.get("feedbackMessage", ""),
                 "newWidgets": parsed_response.get("newWidgets", current_widgets),
                 "status": "Nominal"
             }
+            self.cache.set(cache_key, result)
+            return result
             
         except Exception as e:
             logger.error(f"Error processing command with Gemini: {str(e)}")
@@ -121,7 +144,7 @@ class GeminiService:
         """
         return f"""You are the backend AI layout and analytics engine for "Gridify", a highly polished drag-and-drop telemetry dashboard.
 The user provides a natural language query: "{query}".
-
+        
 Here is the current list of dashboard widgets:
 {json.dumps(current_widgets, indent=2)}
 
