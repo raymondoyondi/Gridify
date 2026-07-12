@@ -20,21 +20,23 @@ A smart web dashboard powered by GenAI that lets users use natural language to i
 - **Charting & Visualization**:
   - Apache ECharts (advanced interactive charts — tree-shaken via `echarts/core` with only Line, Bar, Scatter, Heatmap, Treemap, Grid, Tooltip, VisualMap, and Canvas renderer)
   - D3.js (complex visualizations via React Flow)
-  - Recharts, Chart.js (legacy support)
+  - Recharts, Chart.js (legacy support — dynamically imported via `React.lazy` so they only load when needed)
 - **Data Pipeline Visualization**: React Flow
 - **Animations**: Framer Motion, Motion
 - **Edge Analytics**: DuckDB-WASM (filter/sort/aggregation in a browser web worker, off the FastAPI cluster)
-- **Browser Embeddings**: ONNX Runtime Web (lightweight in-browser embedding model for hybrid RAG pre-filtering)
+- **Browser Embeddings**: ONNX Runtime Web in a dedicated Web Worker (lightweight in-browser embedding model for hybrid RAG pre-filtering, off main thread)
 - **Icons**: Lucide React
 
 ### Backend & Data Processing
 - **API Framework**: Python/FastAPI, Uvicorn
 - **ORM**: SQLAlchemy
-- **Async Task Queue**: Celery + Redis
+- **Async Task Queue**: Celery + Valkey
+- **Durable Execution**: Temporal (optional, alongside Celery for long-running workflows with pause/resume/history)
 - **Data Processing**:
-  - DuckDB (primary analytical engine — English-to-SQL, larger-than-memory analytics, PostgreSQL direct-attach)
+  - DuckDB (primary analytical engine — English-to-SQL via Semantic Layer, larger-than-memory analytics, PostgreSQL direct-attach)
   - DuckDB-WASM (edge analytics in browser web worker for local filter/sort/aggregation)
   - Apache Arrow + PyArrow (zero-copy interchange and IPC streaming from DuckDB to the UI/LLM)
+  - Apache Arrow Flight SQL (native Flight SQL protocol for high-throughput record batch streaming)
 - **Vector Databases**: Chroma, Qdrant
 - **Embedding Model**: sentence-transformers
 - **Database**: PostgreSQL 15+
@@ -44,6 +46,7 @@ A smart web dashboard powered by GenAI that lets users use natural language to i
 - **LLM Integration**:
   - Google Gemini API (native `@google/genai` / `google-generativeai` SDKs — no LangChain overhead)
   - LiteLLM (unified multi-provider interface with automatic Gemini → vLLM/Mistral fallback)
+  - LLM Gateway abstraction (Portkey / Langfuse) for observability, retries, and budget tracking outside core FastAPI code
 - **LLM Response Caching**: Redis-backed cache for repeated dashboard queries (sub-100ms cache hits)
 - **LLM Evaluation**: Promptfoo suite grades text-to-chart/summary prompts in CI
 - **Self-hosted LLMs**: vLLM, Hugging Face TGI
@@ -98,7 +101,7 @@ pip install -r requirements.txt
 
 3. **Start the development stack**
 ```bash
-npm run docker:compose:up    # Start data services (PostgreSQL, Redis, Chroma, Prometheus, Grafana)
+npm run docker:compose:up    # Start data services (PostgreSQL, Valkey, Chroma, Prometheus, Grafana, Temporal)
 uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload &  # Start FastAPI backend
 npm run dev                  # Start frontend dev server (proxies /api to FastAPI)
 ```
@@ -145,7 +148,7 @@ VITE_API_URL=http://localhost:3000
 # Backend
 GEMINI_API_KEY=your_api_key_here
 DATABASE_URL=postgresql://gridify:gridify_password@localhost:5432/gridify
-REDIS_URL=redis://localhost:6379/0
+REDIS_URL=valkey://localhost:6379/0
 DUCKDB_PATH=./data/gridify.duckdb
 
 # Vector Database
@@ -157,6 +160,18 @@ LLM_PROVIDER=gemini
 LLM_MODEL=gemini-3.5-flash
 USE_AI_AGENT=true          # native google-generativeai agent workflows (no LangChain)
 ASYNC_PROCESSING_ENABLED=true
+
+# LLM Gateway (optional - Portkey/Langfuse for observability)
+LLM_GATEWAY_PROVIDER=litellm
+LLM_GATEWAY_PORTKEY_API_KEY=your_portkey_key
+LLM_GATEWAY_LANGFUSE_PUBLIC_KEY=your_langfuse_public_key
+LLM_GATEWAY_LANGFUSE_SECRET_KEY=your_langfuse_secret_key
+
+# Temporal (optional durable execution)
+TEMPORAL_ENABLED=false
+TEMPORAL_HOST=localhost:7233
+TEMPORAL_NAMESPACE=gridify
+TEMPORAL_TASK_QUEUE=gridify-tasks
 
 # LLM Response Caching (Redis-backed, sub-100ms cache hits)
 LLM_CACHE_ENABLED=true
@@ -179,13 +194,13 @@ PYTHON_ENV=development
 
 The development stack includes:
 - **PostgreSQL 15**: Main relational database
-- **Redis 7**: In-memory cache and Celery broker
+- **Valkey 8**: In-memory cache and Celery broker (Redis-compatible, open-source)
 - **Chroma**: Vector database for embeddings
 - **Prometheus**: Metrics collection
 - **Grafana**: Metrics visualization
 - **Alertmanager**: Alert management
 - **Node Exporter**: System metrics
-- **Redis Exporter**: Redis metrics
+- **Redis Exporter**: Valkey metrics
 - **PostgreSQL Exporter**: Database metrics
 
 ### Production Deployment
@@ -200,7 +215,7 @@ npm run terraform:apply
 This creates:
 - VPC with public/private subnets
 - RDS PostgreSQL database
-- ElastiCache Redis cluster
+- ElastiCache Valkey cluster
 - S3 bucket with versioning
 - CloudWatch logging
 - Security groups
@@ -215,14 +230,17 @@ Includes:
 - 3 API replicas with auto-scaling
 - 2 frontend replicas
 - 2 Celery worker replicas
+- 2 Temporal worker replicas (optional durable execution)
 - Horizontal Pod Autoscaler (3-10 replicas based on CPU/memory)
 
 ## 📚 Architecture & Documentation
 
 ### System Architecture
-- **Frontend**: React components with ECharts (tree-shaken), React Flow, Framer Motion for interactive dashboards; DuckDB-WASM and ONNX Runtime Web for edge/browser analytics and hybrid RAG
-- **Backend**: FastAPI with async task processing via Celery
-- **Data Pipeline**: PostgreSQL → DuckDB (Apache Arrow, zero-copy IPC streaming) → native Gemini SDK for AI insights
+- **Frontend**: React components with ECharts (tree-shaken), React Flow, Framer Motion for interactive dashboards; DuckDB-WASM and ONNX Runtime Web in a dedicated Web Worker for edge/browser analytics and hybrid RAG
+- **Backend**: FastAPI with async task processing via Celery + Valkey; optional Temporal workflows for durable execution
+- **Data Pipeline**: PostgreSQL → DuckDB (Apache Arrow, zero-copy IPC streaming, Flight SQL protocol) → native Gemini SDK for AI insights
+- **Semantic Layer**: Structured JSON queries (measures/dimensions/filters) instead of raw SQL for safe English-to-SQL translation
+- **LLM Gateway**: Portkey/Langfuse proxy abstraction for observability, retries, and budget tracking outside core FastAPI code
 - **Vector Store**: Chroma/Qdrant for semantic search and RAG
 - **Infrastructure**: Kubernetes with auto-scaling, monitored by Prometheus/Grafana
 
@@ -246,7 +264,7 @@ Includes:
 - **Edge Analytics**: DuckDB-WASM runs filter/sort/aggregation locally in the browser web worker, off the backend cluster
 - **Efficient Data Handling**: Arrow zero-copy hand-off from DuckDB to the UI/LLM — no Pandas serialization boundary in the dashboard backend
 - **In-Memory Analytics**: DuckDB for sub-second query times
-- **Hybrid RAG**: ONNX Runtime Web performs in-browser semantic pre-filtering before cloud Chroma lookup, with a deterministic hashing fallback
+- **Hybrid RAG**: ONNX Runtime Web in a dedicated Web Worker performs in-browser semantic pre-filtering before cloud Chroma lookup, with a deterministic hashing fallback
 
 ### Production Ready
 - **CI/CD**: GitHub Actions with automated testing and deployment
@@ -259,14 +277,17 @@ Includes:
 Recent hardening across the AI, data, and infrastructure layers:
 
 ### AI & LLM Reliability
+* **LLM Gateway Abstraction:** `LLMGateway` (`backend/app/services/llm_gateway.py`) routes LiteLLM calls through Portkey or Langfuse when configured, offloading retries, budget tracking, and fallbacks from core FastAPI code.
 * **Strict Structured Outputs:** Every LLM response for `/api/gemini/command` is constrained by a Gemini `response_schema` and validated against strict Pydantic V2 models (`backend/app/schemas/dashboard.py`). Malformed widget shapes can no longer reach the frontend and break Framer Motion / React Flow — the current layout is preserved instead.
 * **Prompt-Injection Guardrails:** `GuardrailsService` (`backend/app/services/guardrails.py`) runs a built-in heuristic scanner plus optional NVIDIA NeMo Guardrails (config in `backend/guardrails/`). Blocked prompts return HTTP 400. Enable NeMo with `pip install nemoguardrails`.
 * **LiteLLM Fallback:** `LLMService` (`backend/app/services/llm_service.py`) routes to hosted Gemini first and transparently falls back to a self-hosted Mistral via vLLM endpoint on rate limits/outages. Configure with `VLLM_BASE_URL` and `VLLM_MODEL`.
 
 ### Data Processing & Pipeline
+* **Semantic Layer for English-to-SQL:** `SemanticLayer` (`backend/app/services/semantic_layer.py`) validates LLM-generated analytical queries against a whitelist of measures/dimensions and compiles safe parameterized SQL, eliminating raw SQL injection risk.
+* **Flight SQL Protocol:** `GridifyFlightServer` (`backend/app/services/arrow_service.py`) now supports Arrow Flight SQL, letting clients stream high-throughput record batches directly from DuckDB over gRPC-Web/WebSockets without hitting the HTTP REST layer.
 * **DuckDB-WASM Offload:** `duckdbClient.ts` runs DuckDB inside a web worker so filter/sort/micro-aggregation of cached telemetry executes locally in the browser, off the centralized FastAPI/Celery cluster. Pure SQL builders (`duckdbQueries.ts`) whitelist columns/directions to prevent injection.
 * **Arrow IPC Streaming:** Apache Arrow streaming-format payloads (`query_to_arrow_ipc`) are sent from the backend to the frontend, where `arrowClient.ts` reconstructs tables client-side without `JSON.parse`.
-* **Hybrid RAG:** `ragClient.ts` embeds queries with a lazy ONNX model (`onnxruntime-web`, dynamically imported from a CDN) and cosine-matches them against the cached semantic index in-browser before hitting the cloud Chroma store, with a deterministic hashing fallback for offline/tests.
+* **Hybrid RAG:** `ragClient.ts` embeds queries with ONNX Runtime Web inside a dedicated Web Worker (dynamically imported from a CDN) and cosine-matches them against the cached semantic index in-browser before hitting the cloud Chroma store, with a deterministic hashing fallback for offline/tests.
 
 ### Frontend & State
 * **Zustand Store:** `src/store/dashboardStore.ts` is the single source of truth for widgets, ordering, telemetry, summaries, and status.
@@ -274,8 +295,10 @@ Recent hardening across the AI, data, and infrastructure layers:
 * **Code-Splitting:** Apache ECharts (~1 MB monolithic) is now tree-shaken via `echarts-for-react/lib/core` importing only Line/Bar/Scatter/Heatmap/Treemap charts plus Grid/Tooltip/VisualMap and Canvas renderer, cutting the chunk to ~594 KB (gzip 199 KB). React Flow (D3) pipeline is also loaded on demand via `React.lazy` (`src/components/charts/LazyCharts.tsx`).
 
 ### Infrastructure & Secrets
+* **Valkey Cache:** Redis replaced with Valkey (`valkey/valkey:8-alpine`) for future-proof caching against restrictive licensing. The `redis-py` client remains compatible because Valkey speaks RESP.
+* **Temporal Durable Execution:** Long-running workflows (dashboard generation, telemetry sync) can run on Temporal (`backend/temporal_app.py`) alongside Celery, with native pause/resume and deep historical state tracking.
 * **PgBouncer Connection Pooling:** Configured via `docker-compose.yml` on port `6432` to pool connections between FastAPI and PostgreSQL, absorbing elastic connection spikes.
-* **ElastiCache Redis Cluster:** Set `REDIS_CLUSTER_MODE=true` (with a `rediss://` `REDIS_URL`) to use the cluster client.
+* **ElastiCache Valkey Cluster:** Set `REDIS_CLUSTER_MODE=true` (with a `rediss://` `REDIS_URL`) to use the cluster client.
 * **Cloud Secrets Management:** `SECRETS_BACKEND=vault|aws` hydrates the environment from HashiCorp Vault or AWS Secrets Manager before settings load (`backend/app/utils/secrets.py`) — zero secrets are stored in the repo.
 
 ## 🧪 Testing
