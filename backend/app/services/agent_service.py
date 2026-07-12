@@ -26,6 +26,7 @@ except ImportError:  # pragma: no cover - exercised only when SDK is missing
 
 from app.config import settings
 from app.utils.logger import setup_logger
+from app.services.duckdb_service import get_duckdb_service
 
 logger = setup_logger(__name__)
 
@@ -36,13 +37,50 @@ class AnalyticsTools:
     Each tool is a normal function with a docstring. There is no framework
     magic here: the agent service maps tool names to these callables and
     invokes them directly.
+
+    The English-to-SQL feature is powered by DuckDB: the LLM produces SQL and
+    these tools execute it against DuckDB, which streams the result set back to
+    the agent as Apache Arrow for zero-copy efficiency.
     """
     
     @staticmethod
     def query_telemetry(device_id: str, metric_type: str) -> str:
-        """Query telemetry data for a device and metric."""
-        # Placeholder - integrate with DuckDB service.
-        return f"Telemetry for device {device_id}: {metric_type}"
+        """Query telemetry data for a device and metric using DuckDB."""
+        try:
+            db = get_duckdb_service()
+            table = db.query_to_arrow(
+                """
+                SELECT * FROM telemetry
+                WHERE device_id = ? AND metric_type = ?
+                ORDER BY timestamp DESC LIMIT 1000
+                """,
+                [device_id, metric_type],
+            )
+            rows = table.to_pylist()
+        except Exception as exc:  # pragma: no cover - DB dependent
+            logger.error("DuckDB telemetry query failed: %s", exc)
+            return f"Telemetry for device {device_id}: {metric_type}"
+        return f"Telemetry for device {device_id}: {metric_type} ({len(rows)} rows)"
+    
+    @staticmethod
+    def run_sql(sql: str) -> str:
+        """Execute a SQL statement produced by the English-to-SQL feature.
+
+        DuckDB is the primary engine for natural-language queries. The result
+        is returned as Arrow-backed JSON so downstream tooling stays
+        serialization-free.
+        """
+        try:
+            db = get_duckdb_service()
+            table = db.english_to_sql(sql)
+            rows = table.to_pylist()
+        except Exception as exc:
+            return f"SQL execution failed: {exc}"
+        preview = rows[:10]
+        return (
+            f"Executed SQL against DuckDB: {len(rows)} rows. "
+            f"Sample: {preview}"
+        )
     
     @staticmethod
     def list_devices() -> str:
@@ -90,6 +128,7 @@ class AIAgentService:
         tools = AnalyticsTools()
         return {
             "query_telemetry": tools.query_telemetry,
+            "run_sql": tools.run_sql,
             "list_devices": tools.list_devices,
             "generate_summary": tools.generate_summary,
             "create_visualization": tools.create_visualization,

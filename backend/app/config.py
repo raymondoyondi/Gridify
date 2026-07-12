@@ -44,8 +44,6 @@ class Settings(BaseSettings):
     PROMETHEUS_ENABLED: bool = False
     GRAFANA_URL: Optional[str] = None
     
-    # Feature Flags
-    USE_POLARS: bool = True
     # Native Google GenAI SDK powered agent workflows (replaces LangChain).
     USE_AI_AGENT: bool = True
     ASYNC_PROCESSING_ENABLED: bool = True
