@@ -75,6 +75,15 @@ class Settings(BaseSettings):
     LLM_GATEWAY_LANGFUSE_SECRET_KEY: Optional[str] = None
     LLM_GATEWAY_LANGFUSE_HOST: str = "https://cloud.langfuse.com"
 
+    # Real-time collaborative layout sync (Improvement 2).
+    # Selects the transport used by the frontend realtime engine: "broadcast"
+    # (cross-tab, zero-dep), "yjs" (multiplayer CRDT over WebSocket), or
+    # "supabase" (hosted realtime). The frontend provider is chosen to match.
+    REALTIME_PROVIDER: str = "broadcast"
+    YJS_WEBSOCKET_URL: Optional[str] = None
+    SUPABASE_URL: Optional[str] = None
+    SUPABASE_ANON_KEY: Optional[str] = None
+
     # LLM Configuration
     LITELLM_API_KEY: Optional[str] = None
     LLM_PROVIDER: str = "gemini"
