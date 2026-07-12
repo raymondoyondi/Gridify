@@ -35,13 +35,19 @@ class Settings(BaseSettings):
     LLM_MODEL: str = "gemini-3.5-flash"
     VLLM_BASE_URL: Optional[str] = None
     
+    # LLM Response Caching
+    LLM_CACHE_ENABLED: bool = True
+    LLM_CACHE_TTL: int = 3600  # seconds
+    LLM_CACHE_PREFIX: str = "gridify:llm:"
+    
     # Monitoring
     PROMETHEUS_ENABLED: bool = False
     GRAFANA_URL: Optional[str] = None
     
     # Feature Flags
     USE_POLARS: bool = True
-    USE_LANGCHAIN: bool = True
+    # Native Google GenAI SDK powered agent workflows (replaces LangChain).
+    USE_AI_AGENT: bool = True
     ASYNC_PROCESSING_ENABLED: bool = True
     
     class Config:
