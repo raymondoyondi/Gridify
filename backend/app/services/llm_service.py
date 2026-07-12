@@ -43,7 +43,7 @@ class LLMService:
     """Multi-provider completion with ordered fallbacks."""
 
     def __init__(self, completion_fn: Optional[CompletionFn] = None):
-        # Allow tests / callers to inject a fake completion function.
+        self._custom_completion = completion_fn
         if completion_fn is not None:
             self._completion = completion_fn
         elif LITELLM_AVAILABLE:
@@ -121,8 +121,11 @@ class LLMService:
 
             try:
                 attempts.append(label)
-                gateway = get_llm_gateway()
-                response = gateway.complete(kwargs)
+                if self._custom_completion is not None:
+                    response = self._custom_completion(**kwargs)
+                else:
+                    gateway = get_llm_gateway()
+                    response = gateway.complete(kwargs)
                 content = _extract_content(response)
                 logger.info("LLM served by %s via %s", label, settings.LLM_GATEWAY_PROVIDER)
                 return LLMResult(content=content, model=label, attempts=attempts)

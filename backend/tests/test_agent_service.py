@@ -17,6 +17,7 @@ def test_agent_service_has_native_tools():
     assert set(agent.tools) == {
         "query_telemetry",
         "run_sql",
+        "semantic_query",
         "list_devices",
         "generate_summary",
         "create_visualization",
