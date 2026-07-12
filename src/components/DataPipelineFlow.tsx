@@ -30,9 +30,9 @@ const DataPipelineFlow: React.FC<DataPipelineFlowProps> = ({
 }) => {
   const initialNodes: PipelineNode[] = [
     {
-      id: "iot-sensors",
-      data: { label: "IoT Sensors", status: "active" },
-      position: { x: 0, y: 50 },
+      id: "postgresql",
+      data: { label: "PostgreSQL", status: "active" },
+      position: { x: 0, y: 150 },
       style: {
         background: "#ecfdf5",
         border: "2px solid #10b981",
@@ -42,45 +42,9 @@ const DataPipelineFlow: React.FC<DataPipelineFlowProps> = ({
       },
     },
     {
-      id: "data-ingestion",
-      data: { label: "Data Ingestion", status: "active" },
-      position: { x: 200, y: 50 },
-      style: {
-        background: "#e0f2fe",
-        border: "2px solid #0ea5e9",
-        borderRadius: "8px",
-        padding: "10px",
-        minWidth: "120px",
-      },
-    },
-    {
-      id: "normalization",
-      data: { label: "Normalization", status: "active" },
-      position: { x: 400, y: 50 },
-      style: {
-        background: "#f3e8ff",
-        border: "2px solid #a855f7",
-        borderRadius: "8px",
-        padding: "10px",
-        minWidth: "120px",
-      },
-    },
-    {
-      id: "polars-processing",
-      data: { label: "Polars Processing", status: "active" },
-      position: { x: 100, y: 200 },
-      style: {
-        background: "#fef3c7",
-        border: "2px solid #f59e0b",
-        borderRadius: "8px",
-        padding: "10px",
-        minWidth: "140px",
-      },
-    },
-    {
       id: "duckdb-query",
-      data: { label: "DuckDB Query", status: "active" },
-      position: { x: 300, y: 200 },
+      data: { label: "DuckDB Engine", status: "active" },
+      position: { x: 200, y: 150 },
       style: {
         background: "#fce7f3",
         border: "2px solid #ec4899",
@@ -90,9 +54,21 @@ const DataPipelineFlow: React.FC<DataPipelineFlowProps> = ({
       },
     },
     {
+      id: "arrow-exchange",
+      data: { label: "Apache Arrow (zero-copy)", status: "active" },
+      position: { x: 400, y: 150 },
+      style: {
+        background: "#e0f2fe",
+        border: "2px solid #0ea5e9",
+        borderRadius: "8px",
+        padding: "10px",
+        minWidth: "160px",
+      },
+    },
+    {
       id: "ai-analysis",
       data: { label: "AI Analysis (Gemini)", status: "active" },
-      position: { x: 500, y: 200 },
+      position: { x: 400, y: 320 },
       style: {
         background: "#dbeafe",
         border: "2px solid #3b82f6",
@@ -102,21 +78,9 @@ const DataPipelineFlow: React.FC<DataPipelineFlowProps> = ({
       },
     },
     {
-      id: "vector-embeddings",
-      data: { label: "Vector Embeddings", status: "active" },
-      position: { x: 200, y: 350 },
-      style: {
-        background: "#f0fdf4",
-        border: "2px solid #22c55e",
-        borderRadius: "8px",
-        padding: "10px",
-        minWidth: "140px",
-      },
-    },
-    {
       id: "visualization",
       data: { label: "Visualization (ECharts)", status: "active" },
-      position: { x: 400, y: 350 },
+      position: { x: 600, y: 150 },
       style: {
         background: "#fef2f2",
         border: "2px solid #ef4444",
@@ -127,29 +91,25 @@ const DataPipelineFlow: React.FC<DataPipelineFlowProps> = ({
     },
     {
       id: "api-response",
-      data: { label: "API Response", status: "active" },
-      position: { x: 200, y: 500 },
+      data: { label: "UI / API Response", status: "active" },
+      position: { x: 800, y: 150 },
       style: {
         background: "#f5f3ff",
         border: "2px solid #8b5cf6",
         borderRadius: "8px",
         padding: "10px",
-        minWidth: "120px",
+        minWidth: "140px",
       },
     },
   ]
   
   const initialEdges: Edge[] = [
-    { id: "e1", source: "iot-sensors", target: "data-ingestion" },
-    { id: "e2", source: "data-ingestion", target: "normalization" },
-    { id: "e3", source: "normalization", target: "polars-processing" },
-    { id: "e4", source: "normalization", target: "duckdb-query" },
-    { id: "e5", source: "normalization", target: "ai-analysis" },
-    { id: "e6", source: "polars-processing", target: "vector-embeddings" },
-    { id: "e7", source: "duckdb-query", target: "visualization" },
-    { id: "e8", source: "ai-analysis", target: "visualization" },
-    { id: "e9", source: "vector-embeddings", target: "api-response" },
-    { id: "e10", source: "visualization", target: "api-response" },
+    { id: "e1", source: "postgresql", target: "duckdb-query" },
+    { id: "e2", source: "duckdb-query", target: "arrow-exchange" },
+    { id: "e3", source: "arrow-exchange", target: "ai-analysis" },
+    { id: "e4", source: "arrow-exchange", target: "visualization" },
+    { id: "e5", source: "ai-analysis", target: "visualization" },
+    { id: "e6", source: "visualization", target: "api-response" },
   ]
   
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
