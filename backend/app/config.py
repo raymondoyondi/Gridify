@@ -33,8 +33,30 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "postgresql://gridify:gridify_password@localhost:5432/gridify"
     
-    # DuckDB
+    # DuckDB (local in-process engine — used by default and for MotherDuck-style
+    # local-first query paths).
     DUCKDB_PATH: str = "./data/gridify.duckdb"
+
+    # Pluggable OLAP storage tier.
+    # The heavy cloud analytical tier can now be backed by a serverless /
+    # distributed engine instead of a single file-attached DuckDB. ``OLAP_BACKEND``
+    # selects the engine:
+    #   - "duckdb"    : local in-process DuckDB (default, zero infra)
+    #   - "clickhouse": serverless/distributed ClickHouse over HTTP
+    #   - "motherduck": MotherDuck shared cloud store (DuckDB wire-compatible)
+    # Selecting clickhouse / motherduck lets many FastAPI pods share one
+    # synchronized analytical store instead of split local .duckdb files.
+    OLAP_BACKEND: str = "duckdb"
+
+    # ClickHouse (serverless/distributed OLAP).
+    CLICKHOUSE_URL: str = "http://localhost:8123"
+    CLICKHOUSE_USER: str = "default"
+    CLICKHOUSE_PASSWORD: str = ""
+    CLICKHOUSE_DATABASE: str = "gridify"
+
+    # MotherDuck (shared cloud DuckDB store; duckdb connects via the ``md:`` URL).
+    MOTHERDUCK_TOKEN: Optional[str] = None
+    MOTHERDUCK_DATABASE: str = "gridify"
     
     # Vector DB
     CHROMA_HOST: str = "localhost"
