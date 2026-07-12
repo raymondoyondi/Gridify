@@ -25,9 +25,9 @@ A smart web dashboard powered by GenAI that lets users use natural language to i
 - **API Framework**: Python/FastAPI, Express.js
 - **Async Task Queue**: Celery + Redis
 - **Data Processing**:
-  - Apache Arrow / Polars (lightning-fast data manipulation)
-  - DuckDB (in-memory analytical database)
-  - Pandas (legacy support)
+  - DuckDB (primary analytical engine — English-to-SQL, larger-than-memory analytics)
+  - Apache Arrow (zero-copy interchange from DuckDB to the UI/LLM)
+  - Polars (scoped to the ML microservice for feature engineering only)
 - **Vector Databases**: Chroma, Qdrant
 - **Database**: PostgreSQL 15+
 
@@ -145,7 +145,6 @@ CHROMA_PORT=8000
 LLM_PROVIDER=gemini
 LLM_MODEL=gemini-3.5-flash
 USE_AI_AGENT=true          # native google-generativeai agent workflows (no LangChain)
-USE_POLARS=true
 ASYNC_PROCESSING_ENABLED=true
 
 # LLM Response Caching (Redis-backed, sub-100ms cache hits)
@@ -204,7 +203,7 @@ Includes:
 ### System Architecture
 - **Frontend**: React components with ECharts, React Flow, Framer Motion for interactive dashboards
 - **Backend**: FastAPI + Express with async task processing via Celery
-- **Data Pipeline**: Polars for fast processing → DuckDB for analytics → native Gemini SDK for AI insights
+- **Data Pipeline**: PostgreSQL → DuckDB (Apache Arrow, zero-copy) → native Gemini SDK for AI insights
 - **Vector Store**: Chroma/Qdrant for semantic search and RAG
 - **Infrastructure**: Kubernetes with auto-scaling, monitored by Prometheus/Grafana
 
@@ -225,7 +224,7 @@ Includes:
 ### Scalability
 - **Horizontal Scaling**: Kubernetes auto-scales API from 3-10 replicas
 - **Async Processing**: Celery workers handle long-running tasks
-- **Efficient Data Handling**: Polars replaces Pandas for 10-100x speed
+- **Efficient Data Handling**: Arrow zero-copy hand-off from DuckDB to the UI/LLM — no Pandas/Polars serialization boundary in the dashboard backend
 - **In-Memory Analytics**: DuckDB for sub-second query times
 
 ### Production Ready
