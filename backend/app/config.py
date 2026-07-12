@@ -33,6 +33,18 @@ class Settings(BaseSettings):
     CHROMA_PORT: int = 8000
     QDRANT_URL: Optional[str] = None
    
+    # LLM Gateway Proxies (Portkey / Langfuse).
+    # When configured, all LiteLLM calls are routed through the gateway so
+    # tracking, retries, budget limits, and fallbacks live outside the core
+    # FastAPI code.
+    LLM_GATEWAY_PROVIDER: str = "litellm"
+    LLM_GATEWAY_API_KEY: Optional[str] = None
+    LLM_GATEWAY_BASE_URL: Optional[str] = None
+    LLM_GATEWAY_PORTKEY_API_KEY: Optional[str] = None
+    LLM_GATEWAY_LANGFUSE_PUBLIC_KEY: Optional[str] = None
+    LLM_GATEWAY_LANGFUSE_SECRET_KEY: Optional[str] = None
+    LLM_GATEWAY_LANGFUSE_HOST: str = "https://cloud.langfuse.com"
+
     # LLM Configuration
     LITELLM_API_KEY: Optional[str] = None
     LLM_PROVIDER: str = "gemini"
