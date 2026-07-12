@@ -164,12 +164,24 @@ jobs:
      
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+          cache: "pip"
+       
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
       
       - name: Run Playwright tests
-        run: npx start-server-and-test 'npm run dev -- --port 3000' http://127.0.0.1:3000 'npx playwright test'
+        run: npx start-server-and-test 'sh -c "uvicorn backend.main:app --host 0.0.0.0 --port 8000 & npm run dev -- --port 3000"' http://127.0.0.1:3000 'npx playwright test'
         env:
-          VITE_API_URL: http://localhost:3000
+          VITE_API_URL: http://localhost:8000
           NODE_ENV: test
+          PYTHON_ENV: development
       
       - name: Upload Playwright report
         if: always()
