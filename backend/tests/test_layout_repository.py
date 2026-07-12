@@ -1,5 +1,7 @@
 """Tests for persistent dashboard-layout storage."""
 
+import uuid
+
 import pytest
 
 from app.services.layout_repository import (
@@ -18,9 +20,9 @@ def repo():
     reset_layout_repository(None)
 
 
-def _layout(owner="u1", public=False):
+def _layout(owner="u1", public=False, id=None):
     return DashboardLayout(
-        id="L1",
+        id=id or f"L{uuid.uuid4().hex[:4]}",
         name="My Layout",
         owner=owner,
         widgets=[{"id": "w1", "title": "T"}],
@@ -30,17 +32,17 @@ def _layout(owner="u1", public=False):
 
 def test_save_and_get(repo):
     saved = repo.save(_layout())
-    assert saved.id == "L1"
+    assert saved.id is not None
     assert saved.created_at and saved.updated_at
-    got = repo.get("L1")
+    got = repo.get(saved.id)
     assert got is not None
     assert got.name == "My Layout"
     assert got.widgets == [{"id": "w1", "title": "T"}]
 
 
 def test_overwrite_updates_timestamp(repo):
-    first = repo.save(_layout())
-    later = repo.save(_layout())
+    first = repo.save(_layout(id="L1"))
+    later = repo.save(_layout(id="L1"))
     assert later.created_at == first.created_at  # preserved
     assert later.updated_at >= first.updated_at
 
@@ -54,10 +56,10 @@ def test_list_by_owner_and_public(repo):
 
 
 def test_delete(repo):
-    repo.save(_layout())
-    assert repo.delete("L1") is True
-    assert repo.get("L1") is None
-    assert repo.delete("L1") is False
+    saved = repo.save(_layout())
+    assert repo.delete(saved.id) is True
+    assert repo.get(saved.id) is None
+    assert repo.delete(saved.id) is False
 
 
 def test_factory_defaults_to_in_memory(monkeypatch):

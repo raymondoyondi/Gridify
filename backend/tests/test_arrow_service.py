@@ -49,8 +49,13 @@ def test_serialize_ipc_roundtrips():
 
 
 def test_serialize_dataset_uses_ipc(telemetry):
+    import pyarrow as pa
+
     payload = arrow.serialize_dataset(telemetry, "temperature")
-    assert payload[:4] == b"ARROW" or b"ARROW" in payload[:8]
+    assert isinstance(payload, bytes)
+    assert len(payload) > 0
+    restored = pa.ipc.open_stream(pa.BufferReader(payload)).read_all()
+    assert restored.num_rows == len(telemetry["temperatureHistory"])
 
 
 def test_datasets_constant_is_stable():

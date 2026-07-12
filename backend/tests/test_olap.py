@@ -54,6 +54,17 @@ def test_factory_returns_duckdb_by_default(monkeypatch, tmp_path):
 
 def test_factory_selects_clickhouse(monkeypatch):
     reset_olap_engine()
+
+    class FakeClient:
+        def post(self, *args, **kwargs):
+            return type("Resp", (), {"raise_for_status": lambda: None})()
+        def close(self):
+            pass
+
+    monkeypatch.setattr(
+        "app.services.olap.clickhouse_engine.httpx.Client",
+        lambda **kw: FakeClient(),
+    )
     engine = get_olap_engine(backend="clickhouse")
     assert engine.backend == OLAPBackend.CLICKHOUSE.value
     engine.close()
