@@ -15,6 +15,14 @@ class Settings(BaseSettings):
     PYTHON_ENV: str = "development"
     LOG_LEVEL: str = "INFO"
     
+    # Temporal (optional durable execution alongside Celery).
+    # When enabled, long-running workflows run on Temporal instead of Celery
+    # so they can pause, resume, and track deep historical states.
+    TEMPORAL_ENABLED: bool = False
+    TEMPORAL_HOST: str = "localhost:7233"
+    TEMPORAL_NAMESPACE: str = "gridify"
+    TEMPORAL_TASK_QUEUE: str = "gridify-tasks"
+
     # Valkey / Redis (Valkey is a Redis-compatible drop-in; redis-py client
     # works against Valkey because Valkey speaks the RESP protocol).
     VALKEY_URL: str = "valkey://localhost:6379/0"

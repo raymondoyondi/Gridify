@@ -108,6 +108,28 @@ services:
     networks:
       - gridify-network
 
+  # Temporal (optional durable execution alongside Celery)
+  temporal:
+    image: temporalio/auto-setup:1.22
+    container_name: gridify-temporal
+    ports:
+      - "7233:7233"
+      - "8233:8233"
+    environment:
+      - DB=postgres
+      - DB_PORT=5432
+      - POSTGRES_USER=gridify
+      - POSTGRES_PWD=gridify_password
+      - POSTGRES_DB=gridify
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development.yaml
+    volumes:
+      - ./monitoring/temporal-config:/etc/temporal/config:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - gridify-network
+
   # Node Exporter for system metrics
   node-exporter:
     image: prom/node-exporter:latest

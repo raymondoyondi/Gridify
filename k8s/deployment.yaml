@@ -197,6 +197,53 @@ spec:
           runAsUser: 1000
           
 ---
+# Temporal Worker Deployment (optional, runs alongside Celery)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gridify-temporal-worker
+  namespace: gridify
+  labels:
+    app: gridify-temporal-worker
+    tier: worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gridify-temporal-worker
+  template:
+    metadata:
+      labels:
+        app: gridify-temporal-worker
+        tier: worker
+    spec:
+      serviceAccountName: gridify-api
+      containers:
+      - name: worker
+        image: gridify:latest
+        imagePullPolicy: Always
+        command: ["python", "-m", "temporalio.worker"]
+        env:
+        - name: PYTHON_ENV
+          value: "production"
+        - name: TEMPORAL_HOST
+          value: "temporal:7233"
+        - name: TEMPORAL_NAMESPACE
+          value: "gridify"
+        - name: TEMPORAL_TASK_QUEUE
+          value: "gridify-tasks"
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          
+---
 # Service for API
 apiVersion: v1
 kind: Service
