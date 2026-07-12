@@ -1,5 +1,4 @@
 import React, { useState, useRef } from "react";
-import { motion } from "motion/react";
 import { Widget, Device, ChartDataPoint } from "../types";
 import { DashboardChart } from "./DashboardCharts";
 import { 
@@ -77,26 +76,21 @@ export default function DragDropGrid({
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6" id="dashboard-widgets-grid">
+    <div className="gridify-canvas" id="dashboard-widgets-grid">
       {widgets
         .sort((a, b) => a.order - b.order)
         .map((widget, index) => {
           const isDragging = draggedIndex === index;
           const isDragOver = dragOverIndex === index;
-          const colSpan = widget.w === 4 
-            ? "md:col-span-2 lg:col-span-4" 
-            : widget.w === 3 
-              ? "md:col-span-2 lg:col-span-3" 
-              : widget.w === 2 
-                ? "md:col-span-2 lg:col-span-2" 
-                : "md:col-span-1 lg:col-span-1";
+          // Native CSS grid span driven by the widget's column count. No JS
+          // layout recalculation when charts resize — the browser's grid engine
+          // handles reflow directly.
+          const colSpan = `gridify-col-${Math.min(Math.max(widget.w, 1), 12)}`;
 
           return (
-            <motion.div
+            <div
               key={widget.id}
               id={`widget-container-${widget.id}`}
-              layout
-              transition={{ type: "spring", stiffness: 350, damping: 30 }}
               onDragOver={(e) => handleDragOver(e, index)}
               className={`${colSpan} relative rounded-2xl transition-all duration-200 ${
                 isDragging ? "opacity-30 scale-95 border-2 border-dashed border-teal-300" : ""
@@ -343,7 +337,7 @@ export default function DragDropGrid({
                   </div>
                 )}
               </div>
-            </motion.div>
+            </div>
           );
         })}
     </div>

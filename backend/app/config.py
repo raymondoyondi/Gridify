@@ -45,6 +45,11 @@ class Settings(BaseSettings):
 
     # AI safety guardrails (prompt-injection protection).
     GUARDRAILS_ENABLED: bool = True
+    # Optional edge microservice / API gateway that runs the guardrail check
+    # off the request path (async network layer) instead of in-process. When set,
+    # the async guardrail middleware delegates to it over HTTP. When unset, the
+    # heuristic check runs off the event loop via a worker thread.
+    GUARDRAILS_EDGE_URL: Optional[str] = None
     
     # LLM Response Caching
     LLM_CACHE_ENABLED: bool = True

@@ -5,6 +5,52 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Space Grotesk", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Native dashboard grid tokens (Tailwind 4 @theme). Consumed by the
+     .gridify-* classes below to drive a pure CSS grid with no JS layout
+     recalculation when charts resize. */
+  --gridify-cols: 12;
+  --gridify-gap: 1.5rem;
+}
+
+/* Native CSS Grid canvas for the dashboard widgets.
+   Using CSS Grid (not programmatic positioning) means the browser's own layout
+   engine handles reflow, so resizing a chart is pure CSS — no JavaScript
+   measures or recalculates the canvas. */
+.gridify-canvas {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--gridify-gap);
+  align-items: stretch;
+}
+
+@media (min-width: 768px) {
+  .gridify-canvas {
+    grid-template-columns: repeat(var(--gridify-cols), minmax(0, 1fr));
+  }
+}
+
+/* Column-span utilities driven by each widget's `w` (1..12). On mobile the
+   canvas collapses to 2 columns, so every widget becomes full-width. */
+.gridify-col-1 { grid-column: span 1; }
+.gridify-col-2 { grid-column: span 2; }
+.gridify-col-3 { grid-column: span 3; }
+.gridify-col-4 { grid-column: span 4; }
+.gridify-col-5 { grid-column: span 5; }
+.gridify-col-6 { grid-column: span 6; }
+.gridify-col-7 { grid-column: span 7; }
+.gridify-col-8 { grid-column: span 8; }
+.gridify-col-9 { grid-column: span 9; }
+.gridify-col-10 { grid-column: span 10; }
+.gridify-col-11 { grid-column: span 11; }
+.gridify-col-12 { grid-column: span 12; }
+
+@media (max-width: 767px) {
+  .gridify-col-1, .gridify-col-2, .gridify-col-3, .gridify-col-4,
+  .gridify-col-5, .gridify-col-6, .gridify-col-7, .gridify-col-8,
+  .gridify-col-9, .gridify-col-10, .gridify-col-11, .gridify-col-12 {
+    grid-column: 1 / -1;
+  }
 }
 
 /* Custom scrollbar styling for a polished UI feel */

@@ -93,11 +93,10 @@ class GeminiService:
                 "telemetry": telemetry,
             },
         )
-        cached = self.cache.get(cache_key)
+        cached = self.cache.get_validated(cache_key, DashboardCommandResult)
         if cached is not None:
-            logger.info("Gemini command served from cache")
-            cached["cached"] = True
-            return cached
+            logger.info("Gemini command served from validated cache")
+            return cached.model_dump()
             
         try:
             system_prompt = self._build_prompt(
@@ -123,9 +122,10 @@ class GeminiService:
             validated = self._validate_response(parsed_response, current_widgets)
 
             logger.info("Gemini command processed and validated successfully")
-            result = validated.model_dump()
-            self.cache.set(cache_key, result)
-            return result
+            # Cache the *verified* schema directly so repetitive queries skip
+            # the Pydantic re-validation cost on the next cache hit.
+            self.cache.set_validated(cache_key, validated)
+            return validated.model_dump()
             
         except Exception as e:
             logger.error(f"Error processing command with Gemini: {str(e)}")
