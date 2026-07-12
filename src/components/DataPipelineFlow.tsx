@@ -91,7 +91,7 @@ const DataPipelineFlow: React.FC<DataPipelineFlowProps> = ({
     },
     {
       id: "ai-analysis",
-      data: { label: "AI Analysis (LangChain)", status: "active" },
+      data: { label: "AI Analysis (Gemini)", status: "active" },
       position: { x: 500, y: 200 },
       style: {
         background: "#dbeafe",
@@ -138,7 +138,7 @@ const DataPipelineFlow: React.FC<DataPipelineFlowProps> = ({
       },
     },
   ]
-
+  
   const initialEdges: Edge[] = [
     { id: "e1", source: "iot-sensors", target: "data-ingestion" },
     { id: "e2", source: "data-ingestion", target: "normalization" },
@@ -151,15 +151,15 @@ const DataPipelineFlow: React.FC<DataPipelineFlowProps> = ({
     { id: "e9", source: "vector-embeddings", target: "api-response" },
     { id: "e10", source: "visualization", target: "api-response" },
   ]
-
+  
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
-
+  
   const onConnect = useCallback(
     (connection: Connection) => setEdges((eds) => addEdge(connection, eds)),
     [setEdges]
   )
-
+  
   return (
     <div className="data-pipeline-container" style={{ width: "100%", height: "600px" }}>
       <ReactFlow
