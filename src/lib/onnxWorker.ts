@@ -41,7 +41,7 @@ async function embed(texts: string[]): Promise<number[][]> {
       data: Float32Array.from(vec),
       dims: [1, vec.length],
       type: "float32" as const,
-    };
+    } as any;
     const out = await session.run({ [inputName]: tensor });
     const data = out[outputName].data;
     results.push(Array.from(data as Float32Array));
