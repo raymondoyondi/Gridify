@@ -36,6 +36,7 @@
     "@radix-ui/react-slot": "^1.1.0",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
+    "apache-arrow": "^19.0.0",
     "chart.js": "^4.3.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
@@ -60,6 +61,7 @@
     "autoprefixer": "^10.4.21",
     "tailwindcss": "^4.1.14",
     "typescript": "~5.8.2",
-    "vite": "^6.2.3"
+    "vite": "^6.2.3",
+    "vitest": "^2.1.9"
   }
 }

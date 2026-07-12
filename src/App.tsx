@@ -4,6 +4,7 @@ import DragDropGrid from "./components/DragDropGrid";
 import AnalyticsTable from "./components/AnalyticsTable";
 import { useDashboardStore } from "./store/dashboardStore";
 import { LazyECharts, LazyDataPipelineFlow } from "./components/charts/LazyCharts";
+import ArrowTelemetry from "./components/ArrowTelemetry";
 import {
   Search,
   Sparkles,
@@ -434,6 +435,10 @@ export default function App() {
           {/* Full Devices Analytics Table & Stats view */}
           {(activeTab === "charts" || activeTab === "analytics") && (
             <div id="analytics-tab-panel" className="space-y-6">
+              {/* Zero-copy columnar pipeline: telemetry arrives as a binary
+                  Apache Arrow IPC stream, unpacked client-side with no JSON.parse. */}
+              <ArrowTelemetry />
+
               {/* Advanced ECharts visualization — loaded lazily so the ~1MB
                   ECharts bundle is only fetched when this view is opened. */}
               <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
