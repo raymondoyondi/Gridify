@@ -29,13 +29,13 @@
     "monitoring:up": "docker-compose up prometheus grafana alertmanager -d"
   },
   "dependencies": {
+    "@duckdb/duckdb-wasm": "^1.29.0",
     "@radix-ui/react-dialog": "^1.1.2",
     "@radix-ui/react-dropdown-menu": "^2.1.1",
     "@radix-ui/react-popover": "^1.0.8",
     "@radix-ui/react-select": "^2.0.0",
     "@radix-ui/react-slot": "^1.1.0",
     "@tailwindcss/vite": "^4.1.14",
-    "@duckdb/duckdb-wasm": "^1.29.0",
     "@vitejs/plugin-react": "^5.0.4",
     "apache-arrow": "^19.0.0",
     "chart.js": "^4.3.0",
@@ -61,6 +61,7 @@
     "@playwright/test": "^1.61.1",
     "@types/node": "^22.14.0",
     "autoprefixer": "^10.4.21",
+    "babel-plugin-react-compiler": "^1.0.0",
     "tailwindcss": "^4.1.14",
     "typescript": "~5.8.2",
     "vite": "^6.2.3",
