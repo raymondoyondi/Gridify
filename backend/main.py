@@ -4,13 +4,16 @@ Provides RESTful API endpoints for:
 - Telemetry data retrieval
 - AI-powered natural language commands via Gemini
 - Dashboard widget management
+- Production frontend static file serving
 """
 
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.routers import telemetry, gemini
@@ -58,6 +61,12 @@ async def health_check():
     return {"status": "healthy", "service": "Gridify Backend"}
 
 
+@app.get("/ready")
+async def ready_check():
+    """Readiness check endpoint."""
+    return {"status": "ready"}
+
+
 @app.get("/")
 async def root():
     """Root endpoint."""
@@ -68,6 +77,12 @@ async def root():
     }
 
 
+if settings.PYTHON_ENV == "production":
+    frontend_dist = os.path.join(os.path.dirname(__file__), "..", "dist")
+    if os.path.exists(frontend_dist):
+        app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
@@ -76,4 +91,3 @@ if __name__ == "__main__":
         port=8000,
         reload=settings.PYTHON_ENV != "production"
     )
-  
