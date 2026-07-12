@@ -242,6 +242,28 @@ Includes:
 - **Infrastructure as Code**: Terraform for AWS deployment
 - **Container Orchestration**: Kubernetes with health checks and auto-scaling
 
+## 🛡️ Reliability, Scaling & Security
+
+Recent hardening across the AI, data, and infrastructure layers:
+
+### AI & LLM Reliability
+* **Strict Structured Outputs:** Every LLM response for `/api/gemini/command` is constrained by a Gemini `response_schema` and validated against strict Pydantic V2 models (`backend/app/schemas/dashboard.py`). Malformed widget shapes can no longer reach the frontend and break Framer Motion / React Flow — the current layout is preserved instead.
+* **Prompt-Injection Guardrails:** `GuardrailsService` (`backend/app/services/guardrails.py`) runs a built-in heuristic scanner plus optional NVIDIA NeMo Guardrails (config in `backend/guardrails/`). Blocked prompts return HTTP 400. Enable NeMo with `pip install nemoguardrails`.
+* **LiteLLM Fallback:** `LLMService` (`backend/app/services/llm_service.py`) routes to hosted Gemini first and transparently falls back to a self-hosted Mistral via vLLM endpoint on rate limits/outages. Configure with `VLLM_BASE_URL` and `VLLM_MODEL`.
+
+### Data Processing & Pipeline
+* **MotherDuck Integration:** Set `MOTHERDUCK_TOKEN` and/or `DUCKDB_DATABASE=md:gridify` to run analytics on serverless cloud DuckDB, uncoupling storage from the app instance (falls back to the local file otherwise).
+* **Streaming Ingestion:** Apache Kafka (KRaft, in `docker-compose.yml`) or AWS Kinesis buffer real-time telemetry ahead of DuckDB via `backend/app/services/streaming.py` (`STREAMING_ENABLED`, `STREAMING_BACKEND`).
+
+### Frontend & State
+* **Zustand Store:** `src/store/dashboardStore.ts` is the single source of truth for widgets, ordering, telemetry, summaries, and status.
+* **Code-Splitting:** Apache ECharts (~1MB) and the React Flow (D3) pipeline are loaded on demand via `React.lazy` (`src/components/charts/LazyCharts.tsx`), keeping the baseline bundle lean.
+
+### Infrastructure & Secrets
+* **PgBouncer Connection Pooling:** Configured via `docker-compose.yml` on port `6432` to pool connections between FastAPI and PostgreSQL, absorbing elastic connection spikes.
+* **ElastiCache Redis Cluster:** Set `REDIS_CLUSTER_MODE=true` (with a `rediss://` `REDIS_URL`) to use the cluster client.
+* **Cloud Secrets Management:** `SECRETS_BACKEND=vault|aws` hydrates the environment from HashiCorp Vault or AWS Secrets Manager before settings load (`backend/app/utils/secrets.py`) — zero secrets are stored in the repo.
+
 ## 🧪 Testing
 
 ```bash
