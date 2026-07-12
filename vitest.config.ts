@@ -6,7 +6,7 @@ import react from "@vitejs/plugin-react";
 // separately via `npm run e2e` and must not be collected by vitest (their
 // `test.describe` collides with vitest's global).
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react() as any],
   test: {
     environment: "node",
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
