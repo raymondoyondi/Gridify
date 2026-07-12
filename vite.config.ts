@@ -27,6 +27,11 @@ export default defineConfig(() => {
       },
     },
     server: {
+      // Bind to all interfaces (0.0.0.0 + ::) instead of only IPv6 "localhost"
+      // (::1). Vite 6 resolves the default host to ::1, which leaves IPv4
+      // 127.0.0.1 unreachable. CI (start-server-and-test / wait-on) polls
+      // http://127.0.0.1:3000, so without this the readiness check times out.
+      host: true,
       port: 3000,
       proxy: {
         '/api': {
