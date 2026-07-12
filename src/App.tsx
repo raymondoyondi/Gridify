@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useActionState } from "react";
 import Sidebar from "./components/Sidebar";
 import DragDropGrid from "./components/DragDropGrid";
 import AnalyticsTable from "./components/AnalyticsTable";
@@ -28,7 +28,7 @@ import { motion, AnimatePresence } from "motion/react";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("landing");
-
+  
   // Dashboard state now lives in the Zustand store so the grid, summaries,
   // and status stay in sync without prop-drilling through the tree.
   const widgets = useDashboardStore((s) => s.widgets);
@@ -43,21 +43,21 @@ export default function App() {
   const applyCommandResult = useDashboardStore((s) => s.applyCommandResult);
   const resetLayout = useDashboardStore((s) => s.resetLayout);
   const removeWidgetFromStore = useDashboardStore((s) => s.removeWidget);
-
+  
   // Search box + transient UI state stays local to the component.
   const [aiQuery, setAiQuery] = useState("");
-
-  // API loader & toast
-  const [isGenerating, setIsGenerating] = useState(false);
+  
+  // Toast is transient UI state. The prompt "loading" flag is now derived from
+  // the React 19 Action below instead of a manual isLoading/isGenerating bool.
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-
+  
   const recommendations = [
     { text: "Show me last month's temperature trends as an area chart", short: "Show me last month's temperature trends as an area chart" },
     { text: "Filter metrics for Device 03", short: "Filter metrics for Device 03" },
     { text: "Summarize system load efficiency", short: "Summarize system load efficiency" },
     { text: "Toggle humidity chart focus", short: "Toggle humidity chart focus" }
   ];
-
+  
   // Fetch initial telemetry data from Express backend
   useEffect(() => {
     async function loadTelemetry() {
@@ -73,7 +73,7 @@ export default function App() {
     }
     loadTelemetry();
   }, []);
-
+  
   // Show a temporary toast message helper
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
@@ -81,73 +81,87 @@ export default function App() {
       setToastMessage(null);
     }, 4500);
   };
-
-  // Handle submitting query to backend Gemini engine
-  const handleGeminiSubmit = async (queryText: string) => {
-    if (!queryText.trim()) return;
-    setIsGenerating(true);
-
+  
+  // Handle submitting query to backend Gemini engine.
+  //
+  // React 19 Actions API: the async work lives in an action passed to
+  // useActionState. React tracks the pending transition for us (`isGenerating`),
+  // so there is no manual setIsGenerating(true/false) around the fetch. The
+  // dispatch (`submitGeminiCommand`) can be called directly with the query text
+  // from the input, the recommendation chips, or the quick-action buttons.
+  const runGeminiCommand = async (
+    _prev: string | null,
+    queryText: string
+  ): Promise<string | null> => {
+    const trimmed = queryText.trim();
+    if (!trimmed) return _prev;
+    
     try {
       const response = await fetch("/api/gemini/command", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          query: queryText,
+          query: trimmed,
           currentWidgets: widgets
         })
       });
-
+      
       if (response.ok) {
         const result = await response.json();
-
+        
         // Push the whole command result into the store in one action.
         applyCommandResult(result);
         if (result.feedbackMessage) {
           triggerToast(result.feedbackMessage);
         }
-
+        
         // Add a temporary chip indicating active query filters
-        const cleanQuery = queryText.length > 20 ? queryText.slice(0, 20) + "..." : queryText;
+        const cleanQuery = trimmed.length > 20 ? trimmed.slice(0, 20) + "..." : trimmed;
         addChip(cleanQuery);
-      } else {
-        triggerToast("Failed to process command with backend server.");
+        setAiQuery("");
+        return trimmed;
       }
+      
+      triggerToast("Failed to process command with backend server.");
     } catch (err) {
       console.error("Gemini submit query error:", err);
       triggerToast("Failed to connect to full-stack Gemini service.");
-    } finally {
-      setIsGenerating(false);
-      setAiQuery("");
     }
+    return _prev;
   };
-
+  
+  const [, submitGeminiCommand, isGenerating] = useActionState<string | null, string>(
+    runGeminiCommand,
+    null
+  );
+  
   // Remove active filtering chip
   const removeChip = (chipToRemove: string) => {
     removeChipFromStore(chipToRemove);
     triggerToast(`Removed view filter: "${chipToRemove}"`);
   };
-
+  
   // Reset dashboard to default layout
   const resetDashboardLayout = () => {
     resetLayout();
     triggerToast("Dashboard workspace layout restored successfully.");
   };
-
+  
   // Quick actions button trigger
   const handleQuickAction = (actionText: string) => {
     if (actionText.includes("Restore")) {
       resetDashboardLayout();
     } else {
-      handleGeminiSubmit(actionText);
+      submitGeminiCommand(actionText);
     }
   };
-
+  
   // Remove dynamic custom charts
   const handleRemoveWidget = (widgetId: string) => {
     removeWidgetFromStore(widgetId);
     triggerToast("Widget removed from active workspace.");
   };
-
+  
   return (
     <div className="flex bg-slate-50 min-h-screen text-slate-800 font-sans" id="gridify-app-root">
       
@@ -174,10 +188,10 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
-
+      
       {/* Navigation Sidebar */}
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
-
+      
       {/* Main Workspace Frame */}
       <main className="flex-1 overflow-y-auto h-screen flex flex-col" id="workspace-main-frame">
         
@@ -194,7 +208,7 @@ export default function App() {
               {activeTab === "settings" && "Platform Configuration"}
               {activeTab.startsWith("summary") && "Analytical Summaries & Key Reports"}
             </h2>
-
+            
             {/* System nominal chip */}
             <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border flex items-center gap-1 ${
               systemStatus === "Nominal" 
@@ -205,7 +219,7 @@ export default function App() {
               {systemStatus}
             </span>
           </div>
-
+          
           {/* Quick Header Utilities */}
           <div className="flex items-center gap-4" id="header-utilities">
             <button className="p-2 text-slate-400 hover:text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-full relative transition-colors" title="System alerts">
@@ -219,7 +233,7 @@ export default function App() {
             </button>
           </div>
         </header>
-
+        
         {/* Workspace Views Wrapper */}
         <div className="flex-1 p-8 overflow-y-auto" id="workspace-viewport">
           
@@ -244,7 +258,6 @@ export default function App() {
                   <p className="text-sm md:text-base text-slate-300 leading-relaxed">
                     Build, rearrange, and customize your analytical layouts effortlessly. Translate complex IoT sensor signals into server-driven takeaways using modern AI model orchestration.
                   </p>
-
                   <div className="pt-4 flex flex-wrap gap-4" id="hero-actions">
                     <button
                       onClick={() => setActiveTab("dashboard")}
@@ -262,14 +275,14 @@ export default function App() {
                   </div>
                 </div>
               </div>
-
+              
               {/* Grid of Key System Capabilities */}
               <div className="space-y-6" id="landing-capabilities-container">
                 <div className="text-center md:text-left">
                   <h2 className="font-display font-bold text-slate-800 text-xl tracking-tight">Key Platform Capabilities</h2>
                   <p className="text-xs text-slate-400 mt-1">High fidelity, responsive tools tailored for modern telemetry streams</p>
                 </div>
-
+                
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6" id="capabilities-grid">
                   {/* Cap 1 */}
                   <div className="bg-white border border-slate-100 p-6 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 space-y-4">
@@ -281,7 +294,7 @@ export default function App() {
                       Rearrange individual metric widgets instantly to align with your ongoing investigation. State remains synced automatically.
                     </p>
                   </div>
-
+                  
                   {/* Cap 2 */}
                   <div className="bg-white border border-slate-100 p-6 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 space-y-4">
                     <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-600 flex items-center justify-center">
@@ -292,7 +305,7 @@ export default function App() {
                       Issue natural language questions to generate dynamic telemetry graphs, filter systems, or run comprehensive load summaries.
                     </p>
                   </div>
-
+                  
                   {/* Cap 3 */}
                   <div className="bg-white border border-slate-100 p-6 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 space-y-4">
                     <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-600 flex items-center justify-center">
@@ -305,7 +318,7 @@ export default function App() {
                   </div>
                 </div>
               </div>
-
+              
               {/* Mini Stats Preview Deck */}
               <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6" id="landing-mini-preview">
                 <div className="space-y-2 max-w-sm">
@@ -336,7 +349,7 @@ export default function App() {
               </div>
             </div>
           )}
-
+          
           {/* Main Dashboard Panel */}
           {activeTab === "dashboard" && (
             <div className="space-y-8" id="dashboard-tab-panel">
@@ -356,13 +369,13 @@ export default function App() {
                     placeholder="Type your query, e.g., 'Show me last month's temperature trends as an area chart'"
                     value={aiQuery}
                     onChange={(e) => setAiQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleGeminiSubmit(aiQuery)}
+                    onKeyDown={(e) => e.key === "Enter" && submitGeminiCommand(aiQuery)}
                     className="w-full pl-11 pr-32 py-3.5 text-xs font-medium bg-slate-50/50 hover:bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-1 focus:ring-teal-500 focus:bg-white transition-all duration-200"
                     disabled={isGenerating}
                   />
                   <button
                     id="btn-generate-view"
-                    onClick={() => handleGeminiSubmit(aiQuery)}
+                    onClick={() => submitGeminiCommand(aiQuery)}
                     disabled={isGenerating || !aiQuery.trim()}
                     className="absolute right-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >
@@ -379,7 +392,7 @@ export default function App() {
                     )}
                   </button>
                 </div>
-
+                
                 {/* Filter chips listing */}
                 {searchChips.length > 0 && (
                   <div className="flex flex-wrap items-center gap-2" id="filter-chips-list">
@@ -400,7 +413,7 @@ export default function App() {
                     ))}
                   </div>
                 )}
-
+                
                 {/* Recommendation Quick Prompts */}
                 <div className="border-t border-slate-50 pt-3" id="recommendations-box">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[11px]">
@@ -411,7 +424,7 @@ export default function App() {
                       <button
                         key={idx}
                         id={`recommendation-chip-${idx}`}
-                        onClick={() => handleGeminiSubmit(rec.text)}
+                        onClick={() => submitGeminiCommand(rec.text)}
                         disabled={isGenerating}
                         className="text-slate-500 hover:text-teal-600 hover:bg-teal-50 border border-slate-100 hover:border-teal-100 rounded-lg px-2.5 py-1.5 transition-all font-medium text-left cursor-pointer disabled:opacity-50"
                       >
@@ -421,7 +434,7 @@ export default function App() {
                   </div>
                 </div>
               </div>
-
+              
               {/* Responsive Drag & Drop Grid workspace */}
               <DragDropGrid
                 widgets={widgets}
@@ -433,22 +446,22 @@ export default function App() {
               />
             </div>
           )}
-
+          
           {/* Full Devices Analytics Table & Stats view */}
           {(activeTab === "charts" || activeTab === "analytics") && (
             <div id="analytics-tab-panel" className="space-y-6">
               {/* Zero-copy columnar pipeline: telemetry arrives as a binary
                   Apache Arrow IPC stream, unpacked client-side with no JSON.parse. */}
               <ArrowTelemetry />
-
+              
               {/* Edge analytics: filtering/sorting/aggregation run locally in a
                   DuckDB-WASM web worker against cached data, off the backend. */}
               <DuckDBAnalytics />
-
+              
               {/* Hybrid RAG: query embedding + vector matching run in-browser
                   (ONNX) against the cached semantic index before hitting Chroma. */}
               <RagSearch />
-
+              
               {/* Advanced ECharts visualization — loaded lazily so the ~1MB
                   ECharts bundle is only fetched when this view is opened. */}
               <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
@@ -472,14 +485,14 @@ export default function App() {
                   />
                 </div>
               </div>
-
+              
               <AnalyticsTable
                 devices={telemetry.devices}
                 bulletSummaries={aiBulletSummaries}
               />
             </div>
           )}
-
+          
           {/* Connected Dashboards list */}
           {activeTab === "dashboards" && (
             <div className="bg-white rounded-2xl border border-slate-100 p-8 shadow-sm space-y-6" id="my-dashboards-panel">
@@ -492,7 +505,7 @@ export default function App() {
                   + Connect Cluster
                 </button>
               </div>
-
+              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
                 <div className="border border-slate-100 rounded-2xl p-6 hover:shadow-sm transition-all bg-slate-50/20">
                   <div className="flex items-center justify-between mb-4">
@@ -511,7 +524,7 @@ export default function App() {
                   </div>
                   <p className="text-xs text-slate-500 leading-relaxed">Processing 1,240 events per second telemetry loads from Ireland nodes.</p>
                 </div>
-
+                
                 <div className="border border-slate-100 rounded-2xl p-6 hover:shadow-sm transition-all bg-slate-50/20">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
@@ -530,7 +543,7 @@ export default function App() {
                   <p className="text-xs text-slate-500 leading-relaxed">Active local backup edge relays, supporting sub-second monitoring queries.</p>
                 </div>
               </div>
-
+              
               {/* Data pipeline visualization — React Flow (+ D3) is loaded
                   lazily so its bundle is excluded from the initial download. */}
               <div className="pt-4">
@@ -541,7 +554,7 @@ export default function App() {
               </div>
             </div>
           )}
-
+          
           {/* Document Reports View */}
           {activeTab === "report" && (
             <div className="bg-white rounded-2xl border border-slate-100 p-8 shadow-sm space-y-6" id="reports-panel">
@@ -549,13 +562,14 @@ export default function App() {
                 <div>
                   <h3 className="font-display font-bold text-slate-800 text-base">Exportable Executive Reports</h3>
                   <p className="text-xs text-slate-400 mt-1">Export high fidelity summaries or structured telemetry sheets.</p>
+                
                 </div>
                 <button className="flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-xl text-xs transition-colors">
                   <FileSpreadsheet className="w-4 h-4" />
                   <span>Download CSV</span>
                 </button>
               </div>
-
+              
               <div className="border border-slate-100 rounded-2xl overflow-hidden" id="reports-list">
                 {[
                   { name: "Executive Load Balance Report", date: "June 2026", size: "2.4 MB" },
@@ -576,7 +590,7 @@ export default function App() {
               </div>
             </div>
           )}
-
+          
           {/* Submenu health / load report display pages */}
           {activeTab.startsWith("summary") && (
             <div className="bg-white rounded-2xl border border-slate-100 p-8 shadow-sm space-y-6" id="summary-subviews-panel">
@@ -586,7 +600,7 @@ export default function App() {
                 </h3>
                 <p className="text-xs text-slate-400 mt-1">AI-generated overview compiled directly from live platform socket signals</p>
               </div>
-
+              
               <div className="border-l-2 border-teal-500 pl-4 space-y-4" id="detailed-summary-text">
                 {aiBulletSummaries.map((bullet, idx) => (
                   <div key={idx} className="space-y-1">
@@ -597,7 +611,7 @@ export default function App() {
               </div>
             </div>
           )}
-
+          
           {/* Settings Tab */}
           {activeTab === "settings" && (
             <div className="bg-white rounded-2xl border border-slate-100 p-8 shadow-sm space-y-6" id="settings-panel">
@@ -605,7 +619,7 @@ export default function App() {
                 <h3 className="font-display font-bold text-slate-800 text-base">Platform Configuration</h3>
                 <p className="text-xs text-slate-400 mt-1">Adjust telemetry polling weights and Gemini model thresholds.</p>
               </div>
-
+              
               <div className="space-y-6 max-w-xl" id="settings-form">
                 <div className="space-y-2">
                   <label className="text-xs font-semibold text-slate-700 block">Telemetry Sampling Cycle</label>
@@ -615,7 +629,7 @@ export default function App() {
                     <option>Batch mode (Every 10 minutes)</option>
                   </select>
                 </div>
-
+                
                 <div className="space-y-2">
                   <label className="text-xs font-semibold text-slate-700 block">Gemini Analytical Model</label>
                   <select className="w-full text-xs font-medium border border-slate-100 bg-slate-50/50 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-teal-500 focus:bg-white transition-all">
@@ -623,7 +637,7 @@ export default function App() {
                     <option>gemini-3.1-pro-preview (Deep reasoning analytics)</option>
                   </select>
                 </div>
-
+                
                 <div className="pt-4 border-t border-slate-50 flex justify-end">
                   <button onClick={() => triggerToast("Successfully updated platform settings configuration.")} className="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold rounded-xl transition-colors shadow-sm">
                     Save Changes
@@ -632,7 +646,7 @@ export default function App() {
               </div>
             </div>
           )}
-
+          
         </div>
       </main>
     </div>
