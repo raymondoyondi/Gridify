@@ -301,6 +301,63 @@ Recent hardening across the AI, data, and infrastructure layers:
 * **ElastiCache Valkey Cluster:** Set `REDIS_CLUSTER_MODE=true` (with a `rediss://` `REDIS_URL`) to use the cluster client.
 * **Cloud Secrets Management:** `SECRETS_BACKEND=vault|aws` hydrates the environment from HashiCorp Vault or AWS Secrets Manager before settings load (`backend/app/utils/secrets.py`) — zero secrets are stored in the repo.
 
+## 🧩 Recent Architectural Improvements
+
+Four targeted upgrades that remove single-node, single-session, and
+token/initialization bottlenecks:
+
+### 1. Scalable OLAP Storage Tier (DuckDB → ClickHouse / MotherDuck)
+A single file-attached `gridify.duckdb` per pod cannot scale horizontally. The
+analytics tier now sits behind a `BaseOLAPEngine` (`backend/app/services/olap/`)
+with three interchangeable implementations:
+
+* `DuckDBOLAPEngine` — local in-process (default, zero infra).
+* `ClickHouseOLAPEngine` — serverless/distributed OLAP over HTTP (no native driver).
+* `MotherDuckOLAPEngine` — shared cloud DuckDB store (DuckDB wire-compatible).
+
+Select with `OLAP_BACKEND` (`duckdb|clickhouse|motherduck`); the factory
+(`get_olap_engine`) returns a singleton. Routers/agents depend only on the
+interface, so all pods share one synchronized store. Inspect it at
+`GET /api/olap/engine` and run read-only analytics via `GET /api/olap/query`.
+
+### 2. Real-Time Collaborative Layout Sync
+GenAI drafts and Framer-Motion drags used to live only in ephemeral Zustand
+state. `src/lib/realtimeSync.ts` introduces a transport-agnostic
+`RealtimeProvider` plus a `DashboardSync` binder:
+
+* `BroadcastChannelProvider` — zero-dep cross-tab sync (default; in-process hub
+  fallback for SSR/tests).
+* `YjsProvider` — multiplayer CRDT over WebSocket, lazy-loaded so it never
+  bloats the bundle or test env unless selected.
+* `SupabaseProvider` — hosted realtime (Postgres changes) alternative.
+
+Layouts are now durable and shareable via `LayoutRepository`
+(`backend/app/services/layout_repository.py`) — in-memory by default, PostgreSQL
+when `DATABASE_URL` is reachable — exposed at `GET/POST/DELETE /api/layouts`.
+
+### 3. Formalized Semantic Layer (RBAC + Dialect-Aware + Compact Prompts)
+`backend/app/services/semantic_model.py` formalizes the abstraction fed to Gemini
+so the LLM gets a structured description instead of the raw schema:
+
+* **Role-based data security** — `authorize()` rejects any measure/dimension/
+  filter a role may not access *before* SQL is compiled (`analyst` vs `viewer`).
+* **Dialect-aware compile** — one validated logical query emits DuckDB or
+  ClickHouse SQL (`compile(..., dialect=...)`).
+* **Token-efficient context** — `build_prompt_context(role)` emits a compact
+  description, shrinking prompts and constraining the model to its entitlements.
+  Try `GET /api/semantic/context?role=viewer` and `POST /api/semantic/compile`.
+
+### 4. Edge-RAG Tiered Quantization & Streaming
+Downloading the ONNX model + full vector index hurts "Time to First Query" on
+slow networks. Two additions fix this:
+
+* `src/lib/quantization.ts` — scalar `float32 → int8` quantization (and int8
+  cosine) shrinks embedding payloads ~4x with negligible pre-filter loss.
+* `src/lib/modelStreamCache.ts` — chunked Cache Storage API delivery with
+  **resume** (only missing chunks are re-fetched) and an in-memory fallback.
+  The ONNX worker returns quantized embeddings, and `ragClient.ts` caches/restores
+  a quantized index so refreshes skip re-embedding.
+
 ## 🧪 Testing
 
 ```bash

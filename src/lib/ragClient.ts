@@ -16,6 +16,9 @@
  * block the main UI thread.
  */
 
+import { cacheQuantizedIndex, loadQuantizedIndex } from "./modelStreamCache";
+import { dequantizeBatch } from "./quantization";
+
 export interface RAGChunk {
   id: string;
   text: string;
@@ -51,7 +54,10 @@ export function cosineSimilarity(a: number[], b: number[]): number {
  * projected into `dim` buckets. Not semantically rich, but stable and good
  * enough for local pre-filtering before the cloud Chroma lookup.
  */
-export function hashEmbedding(text: string, dim: number = DEFAULT_DIM): number[] {
+export function hashEmbedding(
+  text: string,
+  dim: number = DEFAULT_DIM,
+): number[] {
   const vec = new Array<number>(dim).fill(0);
   const tokens = text.toLowerCase().match(/[a-z0-9]+/g) ?? [];
   for (const tok of tokens) {
@@ -76,12 +82,15 @@ export class ONNXEmbedder {
   private worker: Worker | null = null;
   private loading: Promise<void> | null = null;
   private readonly modelUrl?: string;
-  private readonly dim: number;
+  readonly dim: number;
   private nextId = 0;
-  private pending = new Map<number, {
-    resolve: (v: number[][]) => void;
-    reject: (e: Error) => void;
-  }>();
+  private pending = new Map<
+    number,
+    {
+      resolve: (v: number[][]) => void;
+      reject: (e: Error) => void;
+    }
+  >();
 
   constructor(opts: { modelUrl?: string; dim?: number } = {}) {
     this.modelUrl = opts.modelUrl;
@@ -107,21 +116,22 @@ export class ONNXEmbedder {
   private _loadWorker(): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        this.worker = new Worker(
-          new URL("./onnxWorker.ts", import.meta.url),
-          { type: "module" }
-        );
+        this.worker = new Worker(new URL("./onnxWorker.ts", import.meta.url), {
+          type: "module",
+        });
       } catch (err) {
         reject(err instanceof Error ? err : new Error(String(err)));
         return;
       }
 
-      this.worker.onmessage = (e: MessageEvent<{
-        type: string;
-        requestId: number;
-        embeddings?: number[][];
-        error?: string;
-      }>) => {
+      this.worker.onmessage = (
+        e: MessageEvent<{
+          type: string;
+          requestId: number;
+          embeddings?: number[][];
+          error?: string;
+        }>,
+      ) => {
         const { type, requestId, embeddings, error } = e.data;
         const pending = this.pending.get(requestId);
         if (!pending) return;
@@ -180,11 +190,26 @@ export class ONNXEmbedder {
 
 /** Local knowledge base used to build an index when the CDN cache is cold. */
 export const LOCAL_DOCUMENTS: RAGChunk[] = [
-  { id: "doc-temperature", text: "Temperature trends show normal cyclical variance with peak loads during afternoon operations." },
-  { id: "doc-proxy", text: "Proxy devices maintain stable active flow control states with minor load offsets." },
-  { id: "doc-node", text: "Marchival Arc node shows slightly higher average node temperature latency and should be investigated." },
-  { id: "doc-uptime", text: "System uptime is steady at three hours ten minutes aggregate uptime with zero hard reboots." },
-  { id: "doc-load", text: "Home Hub averages two point three thousand loads with optimal sensor load values." },
+  {
+    id: "doc-temperature",
+    text: "Temperature trends show normal cyclical variance with peak loads during afternoon operations.",
+  },
+  {
+    id: "doc-proxy",
+    text: "Proxy devices maintain stable active flow control states with minor load offsets.",
+  },
+  {
+    id: "doc-node",
+    text: "Marchival Arc node shows slightly higher average node temperature latency and should be investigated.",
+  },
+  {
+    id: "doc-uptime",
+    text: "System uptime is steady at three hours ten minutes aggregate uptime with zero hard reboots.",
+  },
+  {
+    id: "doc-load",
+    text: "Home Hub averages two point three thousand loads with optimal sensor load values.",
+  },
 ];
 
 /**
@@ -201,31 +226,54 @@ export class HybridRAG {
 
   /** Build an in-memory index from local documents (CDN cache is cold). */
   private async _buildFromLocal(): Promise<void> {
-    const embeddings = await this.embedder.embed(LOCAL_DOCUMENTS.map((d) => d.text));
+    const embeddings = await this.embedder.embed(
+      LOCAL_DOCUMENTS.map((d) => d.text),
+    );
     this.index = LOCAL_DOCUMENTS.map((d, i) => ({
       ...d,
       embedding: embeddings[i],
     }));
   }
 
-  /** Load the cached semantic index; falls back to local docs on any failure. */
+  /**
+   * Load the cached semantic index. On a warm cache we restore the *quantized*
+   * index (int8) from the Cache Storage API so no ONNX re-embedding happens on
+   * page refresh. On a cold cache we build/load embeddings and persist a
+   * quantized copy for next time.
+   */
   async loadIndex(remoteUrl?: string): Promise<void> {
     if (this.index.length > 0) return;
+
+    const cached = await loadQuantizedIndex("semantic-index");
+    if (cached) {
+      const embeddings = dequantizeBatch(cached);
+      this.index = LOCAL_DOCUMENTS.map((d, i) => ({
+        ...d,
+        embedding: embeddings[i] ?? hashEmbedding(d.text, this.embedder.dim),
+      }));
+      return;
+    }
+
     if (remoteUrl) {
       try {
-        const res = await fetch(remoteUrl, { headers: { Accept: "application/json" } });
+        const res = await fetch(remoteUrl, {
+          headers: { Accept: "application/json" },
+        });
         if (res.ok) {
           const payload = (await res.json()) as { chunks?: RAGChunk[] };
           if (payload.chunks?.length) {
             const needEmbed = payload.chunks.filter((c) => !c.embedding);
             if (needEmbed.length) {
-              const emb = await this.embedder.embed(needEmbed.map((c) => c.text));
+              const emb = await this.embedder.embed(
+                needEmbed.map((c) => c.text),
+              );
               let i = 0;
               for (const c of payload.chunks) {
                 if (!c.embedding) c.embedding = emb[i++];
               }
             }
             this.index = payload.chunks;
+            await this._persistQuantizedIndex();
             return;
           }
         }
@@ -234,6 +282,20 @@ export class HybridRAG {
       }
     }
     await this._buildFromLocal();
+    await this._persistQuantizedIndex();
+  }
+
+  /** Quantize the current index to int8 and cache it for resumable reloads. */
+  private async _persistQuantizedIndex(): Promise<void> {
+    if (this.index.length === 0) return;
+    const vectors = this.index.map(
+      (c) => c.embedding ?? hashEmbedding(c.text, this.embedder.dim),
+    );
+    try {
+      await cacheQuantizedIndex("semantic-index", vectors);
+    } catch {
+      // Cache Storage unavailable (e.g. SSR) — ignore; reload will rebuild.
+    }
   }
 
   /** Local cosine-match. Returns the top-k chunks for the query. */

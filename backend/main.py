@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
-from app.routers import telemetry, gemini
+from app.routers import telemetry, gemini, olap, semantic, layouts
 from app.middleware.guardrail_middleware import AsyncGuardrailMiddleware
 from app.utils.logger import setup_logger
 
@@ -54,6 +54,9 @@ app.add_middleware(
 # Include routers
 app.include_router(telemetry.router, prefix="/api", tags=["telemetry"])
 app.include_router(gemini.router, prefix="/api", tags=["gemini"])
+app.include_router(olap.router, prefix="/api", tags=["olap"])
+app.include_router(semantic.router, prefix="/api", tags=["semantic"])
+app.include_router(layouts.router, prefix="/api", tags=["layouts"])
 
 # Async guardrails at the network boundary: prompt-injection scans run off the
 # synchronous request path (edge service or worker thread) so TTFT stays snappy.
