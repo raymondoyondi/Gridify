@@ -1,0 +1,98 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+#
+# Promptfoo evaluation config for Gridify's text-to-chart / text-to-summary
+# prompts. Run with `npm run eval` (or `npx promptfoo eval`).
+#
+# This grades the LLM's structured JSON output for correctness and guards
+# against the two most common failure modes for this kind of prompt:
+#   1. Malformed / non-JSON output that breaks the dashboard.
+#   2. Hallucinated insights that are not grounded in the telemetry data.
+#
+# Wire it into CI so regressions in prompt quality are caught *before* deploy.
+
+description: Gridify text-to-chart & text-to-summary prompt evaluation
+
+prompts:
+  - file://prompts/gridify_command.txt
+  
+providers:
+  - id: google:gemini-1.5-flash
+    config:
+      temperature: 0
+      generationConfig:
+        response_mime_type: application/json
+        
+# Assertions applied to every test case.
+defaultTest:
+  assert:
+    - type: is-json
+    - type: is-json
+      value:
+        type: object
+        required: [aiSummary, feedbackMessage]
+        properties:
+          aiSummary:
+            type: array
+            items:
+              type: string
+          feedbackMessage:
+            type: string
+    - type: javascript
+      value: |
+        const out = JSON.parse(output);
+        if (!Array.isArray(out.aiSummary)) return false;
+        if (out.aiSummary.length < 3 || out.aiSummary.length > 5) {
+          throw new Error(`aiSummary must have 3-5 items, got ${out.aiSummary.length}`);
+        }
+        if (typeof out.feedbackMessage !== 'string' || out.feedbackMessage.length === 0) {
+          throw new Error('feedbackMessage must be a non-empty string');
+        }
+        return true;
+    # Latency budget: dashboards should feel responsive.
+    - type: latency
+      threshold: 8000
+      
+tests:
+  - description: Summarize telemetry (should not add widgets, no hallucination)
+    vars:
+      query: "Summarize the current telemetry"
+      currentWidgets: "[]"
+      telemetry: '{"devices":[{"id":"Home Hub","score":28.78,"uptime":48,"load":"2.3K","status":"operational"}],"temperatureHistory":[{"label":"Jan","value":15},{"label":"Jul","value":28}]}'
+    assert:
+      - type: llm-rubric
+        value: >
+          The aiSummary bullet points must be grounded ONLY in the provided
+          telemetry data (Home Hub, its uptime/load/status, and the temperature
+          history). It must NOT invent devices, metrics, or numbers that are not
+          present in the input.
+          
+  - description: Add a temperature chart (should produce a new widget)
+    vars:
+      query: "Add a chart showing temperature over time"
+      currentWidgets: "[]"
+      telemetry: '{"devices":[{"id":"Home Hub","score":28.78,"uptime":48}],"temperatureHistory":[{"label":"Jan","value":15},{"label":"Feb","value":20},{"label":"Jul","value":28}]}'
+    assert:
+      - type: javascript
+        value: |
+          const out = JSON.parse(output);
+          if (!Array.isArray(out.newWidgets) || out.newWidgets.length < 1) {
+            throw new Error('Expected at least one widget when asked to add a chart');
+          }
+          const w = out.newWidgets[out.newWidgets.length - 1];
+          if (!w.customData || !Array.isArray(w.customData.labels) || !Array.isArray(w.customData.values)) {
+            throw new Error('New widget must include customData with labels and values arrays');
+          }
+          return true;
+          
+  - description: Remove a widget (should shrink the widget list)
+    vars:
+      query: "Remove the last widget"
+      currentWidgets: '[{"id":"w1","title":"Temperature","type":"chart"},{"id":"w2","title":"Humidity","type":"chart"}]'
+      telemetry: '{"devices":[],"temperatureHistory":[]}'
+    assert:
+      - type: javascript
+        value: |
+          const out = JSON.parse(output);
+          if (!Array.isArray(out.newWidgets)) throw new Error('newWidgets must be an array');
+          if (out.newWidgets.length >= 2) throw new Error('Expected fewer widgets after removal');
+          return true;
