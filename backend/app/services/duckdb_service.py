@@ -15,7 +15,7 @@ import os
 from pathlib import Path
 import duckdb
 from typing import Any, List, Dict, Optional
-from backend.app.config import settings
+from app.config import settings
 
 
 class DuckDBService:

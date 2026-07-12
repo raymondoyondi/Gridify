@@ -2,15 +2,16 @@ import { useState, useEffect } from "react";
 import Sidebar from "./components/Sidebar";
 import DragDropGrid from "./components/DragDropGrid";
 import AnalyticsTable from "./components/AnalyticsTable";
-import { Widget, Device, TelemetryData } from "./types";
-import { 
-  Search, 
-  Sparkles, 
-  Bell, 
-  User, 
-  HelpCircle, 
-  X, 
-  CheckCircle, 
+import { useDashboardStore } from "./store/dashboardStore";
+import { LazyECharts, LazyDataPipelineFlow } from "./components/charts/LazyCharts";
+import {
+  Search,
+  Sparkles,
+  Bell,
+  User,
+  HelpCircle,
+  X,
+  CheckCircle,
   Loader2,
   Settings,
   FileSpreadsheet,
@@ -22,74 +23,27 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
-const INITIAL_WIDGETS: Widget[] = [
-  {
-    id: "temp_metrics",
-    title: "IoT Sensor Metrics - Temperature",
-    subtitle: "Line tracking sensor telemetry",
-    type: "line",
-    w: 4,
-    order: 0
-  },
-  {
-    id: "humidity_metrics",
-    title: "IoT Sensor Metrics - Humidity",
-    subtitle: "Bar volume sensor percentages",
-    type: "bar",
-    w: 4,
-    order: 1
-  },
-  {
-    id: "devices_status",
-    title: "IoT Sensor Metrics - Device Status",
-    subtitle: "Active status indicator signals (Select device to investigate)",
-    type: "status",
-    w: 4,
-    order: 2
-  },
-  {
-    id: "analytics_summary",
-    title: "Business Analytics Summary",
-    subtitle: "Real-time device uptime and loading metrics aggregate representation",
-    type: "summary",
-    w: 4,
-    order: 3
-  },
-  {
-    id: "custom_layouts",
-    title: "Custom Layouts & Summaries",
-    subtitle: "Interact directly with layouts inside Gridify using automated layout templates or quick actions below.",
-    type: "actions",
-    w: 4,
-    order: 4
-  }
-];
-
-const INITIAL_TELEMETRY: TelemetryData = {
-  devices: [],
-  temperatureHistory: [],
-  humidityHistory: []
-};
-
-const DEFAULT_SUMMARIES = [
-  "Temperature trends humidity. Check peak loads during afternoon operations.",
-  "Restrate rine sensor humidity, and heanonate IoT sensor line metrics.",
-  "Increase different states and stability values to devices and load balancer.",
-  "Decrease the device integers to ensure creation of warm templates in high temperatures.",
-  "All core endpoints contact logs for improved performance and maintenance intervals."
-];
-
 export default function App() {
   const [activeTab, setActiveTab] = useState("landing");
-  const [widgets, setWidgets] = useState<Widget[]>(INITIAL_WIDGETS);
-  const [telemetry, setTelemetry] = useState<TelemetryData>(INITIAL_TELEMETRY);
-  const [aiBulletSummaries, setAiBulletSummaries] = useState<string[]>(DEFAULT_SUMMARIES);
-  
-  // Search state and dynamic search chips
+
+  // Dashboard state now lives in the Zustand store so the grid, summaries,
+  // and status stay in sync without prop-drilling through the tree.
+  const widgets = useDashboardStore((s) => s.widgets);
+  const setWidgets = useDashboardStore((s) => s.setWidgets);
+  const telemetry = useDashboardStore((s) => s.telemetry);
+  const setTelemetry = useDashboardStore((s) => s.setTelemetry);
+  const aiBulletSummaries = useDashboardStore((s) => s.aiBulletSummaries);
+  const systemStatus = useDashboardStore((s) => s.systemStatus);
+  const searchChips = useDashboardStore((s) => s.searchChips);
+  const addChip = useDashboardStore((s) => s.addChip);
+  const removeChipFromStore = useDashboardStore((s) => s.removeChip);
+  const applyCommandResult = useDashboardStore((s) => s.applyCommandResult);
+  const resetLayout = useDashboardStore((s) => s.resetLayout);
+  const removeWidgetFromStore = useDashboardStore((s) => s.removeWidget);
+
+  // Search box + transient UI state stays local to the component.
   const [aiQuery, setAiQuery] = useState("");
-  const [searchChips, setSearchChips] = useState<string[]>(["IoT Sensor", "Devices Status, IoT"]);
-  const [systemStatus, setSystemStatus] = useState("Nominal");
-  
+
   // API loader & toast
   const [isGenerating, setIsGenerating] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -142,31 +96,16 @@ export default function App() {
 
       if (response.ok) {
         const result = await response.json();
-        
-        // Update summaries and feedback messages
-        if (result.aiSummary) {
-          setAiBulletSummaries(result.aiSummary);
-        }
+
+        // Push the whole command result into the store in one action.
+        applyCommandResult(result);
         if (result.feedbackMessage) {
           triggerToast(result.feedbackMessage);
-        }
-        if (result.newWidgets) {
-          // Sync orders
-          const sanitized = result.newWidgets.map((w: any, idx: number) => ({
-            ...w,
-            order: w.order !== undefined ? w.order : idx
-          }));
-          setWidgets(sanitized);
-        }
-        if (result.status) {
-          setSystemStatus(result.status);
         }
 
         // Add a temporary chip indicating active query filters
         const cleanQuery = queryText.length > 20 ? queryText.slice(0, 20) + "..." : queryText;
-        if (!searchChips.includes(cleanQuery)) {
-          setSearchChips([...searchChips, cleanQuery]);
-        }
+        addChip(cleanQuery);
       } else {
         triggerToast("Failed to process command with backend server.");
       }
@@ -181,16 +120,13 @@ export default function App() {
 
   // Remove active filtering chip
   const removeChip = (chipToRemove: string) => {
-    setSearchChips(searchChips.filter(c => c !== chipToRemove));
+    removeChipFromStore(chipToRemove);
     triggerToast(`Removed view filter: "${chipToRemove}"`);
   };
 
   // Reset dashboard to default layout
   const resetDashboardLayout = () => {
-    setWidgets(INITIAL_WIDGETS);
-    setAiBulletSummaries(DEFAULT_SUMMARIES);
-    setSystemStatus("Nominal");
-    setSearchChips(["IoT Sensor", "Devices Status, IoT"]);
+    resetLayout();
     triggerToast("Dashboard workspace layout restored successfully.");
   };
 
@@ -205,7 +141,7 @@ export default function App() {
 
   // Remove dynamic custom charts
   const handleRemoveWidget = (widgetId: string) => {
-    setWidgets(widgets.filter(w => w.id !== widgetId));
+    removeWidgetFromStore(widgetId);
     triggerToast("Widget removed from active workspace.");
   };
 
@@ -497,9 +433,33 @@ export default function App() {
 
           {/* Full Devices Analytics Table & Stats view */}
           {(activeTab === "charts" || activeTab === "analytics") && (
-            <div id="analytics-tab-panel">
-              <AnalyticsTable 
-                devices={telemetry.devices} 
+            <div id="analytics-tab-panel" className="space-y-6">
+              {/* Advanced ECharts visualization — loaded lazily so the ~1MB
+                  ECharts bundle is only fetched when this view is opened. */}
+              <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
+                <h3 className="font-display font-bold text-slate-800 text-base mb-1">
+                  Advanced Interactive Analytics
+                </h3>
+                <p className="text-xs text-slate-400 mb-4">
+                  Powered by Apache ECharts (code-split, loaded on demand)
+                </p>
+                <div style={{ height: 320 }}>
+                  <LazyECharts
+                    widget={{
+                      id: "advanced_line",
+                      title: "Temperature Trend",
+                      subtitle: "",
+                      type: "line",
+                      w: 4,
+                      order: 0,
+                    }}
+                    telemetry={telemetry}
+                  />
+                </div>
+              </div>
+
+              <AnalyticsTable
+                devices={telemetry.devices}
                 bulletSummaries={aiBulletSummaries}
               />
             </div>
@@ -554,6 +514,15 @@ export default function App() {
                   </div>
                   <p className="text-xs text-slate-500 leading-relaxed">Active local backup edge relays, supporting sub-second monitoring queries.</p>
                 </div>
+              </div>
+
+              {/* Data pipeline visualization — React Flow (+ D3) is loaded
+                  lazily so its bundle is excluded from the initial download. */}
+              <div className="pt-4">
+                <h4 className="font-display font-semibold text-slate-800 text-sm mb-3">
+                  Live Data Pipeline
+                </h4>
+                <LazyDataPipelineFlow title="Gridify Data Pipeline" showMiniMap />
               </div>
             </div>
           )}

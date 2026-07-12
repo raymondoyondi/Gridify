@@ -16,6 +16,7 @@ def test_agent_service_has_native_tools():
     agent = AIAgentService()
     assert set(agent.tools) == {
         "query_telemetry",
+        "run_sql",
         "list_devices",
         "generate_summary",
         "create_visualization",

@@ -6,3 +6,8 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# DuckDB local data files
+backend/data/
+*.duckdb
+*.duckdb.wal
