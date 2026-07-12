@@ -57,7 +57,7 @@ def test_factory_selects_clickhouse(monkeypatch):
 
     class FakeClient:
         def post(self, *args, **kwargs):
-            return type("Resp", (), {"raise_for_status": lambda: None})()
+            return type("Resp", (), {"raise_for_status": lambda self: None})()
         def close(self):
             pass
 
