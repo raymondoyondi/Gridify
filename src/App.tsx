@@ -5,6 +5,8 @@ import AnalyticsTable from "./components/AnalyticsTable";
 import { useDashboardStore } from "./store/dashboardStore";
 import { LazyECharts, LazyDataPipelineFlow } from "./components/charts/LazyCharts";
 import ArrowTelemetry from "./components/ArrowTelemetry";
+import DuckDBAnalytics from "./components/DuckDBAnalytics";
+import RagSearch from "./components/RagSearch";
 import {
   Search,
   Sparkles,
@@ -438,6 +440,14 @@ export default function App() {
               {/* Zero-copy columnar pipeline: telemetry arrives as a binary
                   Apache Arrow IPC stream, unpacked client-side with no JSON.parse. */}
               <ArrowTelemetry />
+
+              {/* Edge analytics: filtering/sorting/aggregation run locally in a
+                  DuckDB-WASM web worker against cached data, off the backend. */}
+              <DuckDBAnalytics />
+
+              {/* Hybrid RAG: query embedding + vector matching run in-browser
+                  (ONNX) against the cached semantic index before hitting Chroma. */}
+              <RagSearch />
 
               {/* Advanced ECharts visualization — loaded lazily so the ~1MB
                   ECharts bundle is only fetched when this view is opened. */}
